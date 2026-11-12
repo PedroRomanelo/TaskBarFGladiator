@@ -216,23 +216,25 @@ foco do programa em que o usuário está trabalhando a cada clique.
 
 ## 2.5 Crate `sim` — balanceamento
 
+As metas, a forma de medir, o congelamento do balanceamento (baseline, replays, tag `balance-v1.0`) e o
+processo para alterar regras estão em [`12-balanceamento-de-referencia.md`](12-balanceamento-de-referencia.md).
+Esta seção trata só da implementação do crate.
+
 ### Tarefas
-1. Binário headless que recebe uma matriz de cenários: nível (1–20), build do jogador (força, técnica,
-   agilidade, defesa, equilibrada), arquétipo do oponente, equipamento por tier.
-2. Para cada cenário, 10.000 lutas com sementes sequenciais.
-3. Saída CSV: cenário, taxa de vitória, turnos médios, desvio padrão de turnos, dano médio por turno,
-   porcentagem de lutas que chegaram à exaustão (turno ≥ 40).
-
-### Metas de balanceamento (verificadas no CI)
-| Métrica | Faixa aceita |
-|---|---|
-| Vitória contra oponente do mesmo nível, build equilibrada | 45 % – 60 % |
-| Vitória de qualquer build contra todas as outras | nunca > 80 % em todas |
-| Turnos médios por luta | 8 – 25 |
-| Lutas que chegam à exaustão | < 5 % |
-| Oponente 3 níveis acima | 15 % – 35 % de vitória |
-
-Execução no CI com 1.000 lutas por cenário (rápido); execução completa local antes de cada release.
+1. Binário headless que recebe uma matriz de cenários: diferença de nível (−5 a +5), build do jogador
+   (equilibrada e as seis especializadas), arquétipo do oponente, tier de equipamento.
+2. Para cada cenário, 10.000 lutas com sementes `1..=10000`.
+3. Modo carreira: 1.000 carreiras completas do nível 1 ao campeão, com a política fixa do jogador simulado
+   (documento 12, seção 4.2).
+4. Saída CSV: cenário, taxa de vitória, turnos médios, desvio padrão de turnos, dano médio por turno,
+   porcentagem de lutas na exaustão, distribuição de ações por arquétipo; para carreiras: nível ao vencer o
+   campeão, total de lutas, vitórias por item, maior sequência de derrotas, ouro sem uso.
+5. Subcomandos:
+   - `check --targets balance/targets.toml` — confere as metas (usado no CI em modo reduzido);
+   - `compare --baseline balance/` — gera `balance/compare.md` com a tabela antes × depois;
+   - `write-baseline` — regenera `balance/baseline.csv` e `balance/baseline-careers.csv`.
+6. Execução paralela por cenário com `std::thread::scope` (sem dependências): cada cenário tem suas
+   próprias sementes, então o resultado independe da ordem de execução das threads.
 
 ---
 

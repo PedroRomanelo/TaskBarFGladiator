@@ -7,6 +7,8 @@ Esta pasta contém o planejamento completo do jogo, do início ao lançamento da
 1. [`00-visao-geral.md`](00-visao-geral.md) — o que será construído, para quem, com quais limites.
 2. [`01-arquitetura.md`](01-arquitetura.md) — como o código será organizado e por quê.
 3. [`11-design-do-jogo.md`](11-design-do-jogo.md) — regras do jogo (atributos, ações, fórmulas).
+   - [`12-balanceamento-de-referencia.md`](12-balanceamento-de-referencia.md) — metas de balanceamento,
+     congelamento das regras (baseline) e processo para alterá-las.
 4. Fases, em ordem cronológica:
    - [`02-fase-0-preparacao.md`](02-fase-0-preparacao.md)
    - [`03-fase-1-plataforma.md`](03-fase-1-plataforma.md)

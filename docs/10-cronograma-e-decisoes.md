@@ -87,6 +87,17 @@ Motivo: padrão do ecossistema Rust; permite uso amplo por terceiros.
 **D16 — Derrota não é permanente.**
 Motivo: uso casual e prolongado; perder progresso por uma luta automática frustraria. Ver GDD.
 
+**D17 — Sem engenharia reversa de outro jogo; balanceamento de referência próprio e congelado.**
+Contexto: o autor quer regras estáveis até o fim da 1.0 para só depois alterar, sem risco de desbalancear
+antes. Alternativa considerada: descompilar um jogo existente e copiar as regras exatas — descartada por ser
+recriação de jogo específico, por risco jurídico e porque as fórmulas extraídas não seriam verificáveis.
+Decisão: metas numéricas objetivas + baseline do `sim` comparado por igualdade exata no CI + replays +
+tag `balance-v1.0`. Detalhes em [`12-balanceamento-de-referencia.md`](12-balanceamento-de-referencia.md).
+
+**D18 — Metas de ritmo propostas pelo Claude, revisadas pelo autor.**
+Contexto: o autor não indicou preferência sobre quem define as metas. As metas iniciais estão no documento 12,
+seção 3, e ficam pendentes de revisão (P8) antes do início da Fase 2.
+
 ## 3. Decisões pendentes
 
 | ID | Decisão | Prazo | Responsável |
@@ -98,9 +109,10 @@ Motivo: uso casual e prolongado; perder progresso por uma luta automática frust
 | P5 | Detecção automática do espaço livre via UI Automation | Pós-1.0 | — |
 | P6 | Suporte nativo a barra vertical | Pós-1.0 | — |
 | P7 | Progresso offline e seus limites | Pós-1.0 | — |
+| P8 | Revisar e aprovar as metas de balanceamento (doc 12, seção 3), principalmente P6 (duração da liga 1) | Antes da Fase 2 | Autor |
 
 ## 4. Como registrar uma nova decisão
 
-Adicionar na seção 2 com o próximo ID (`D17`, `D18`...), contendo: decisão, contexto, alternativas
+Adicionar na seção 2 com o próximo ID (`D19`, `D20`...), contendo: decisão, contexto, alternativas
 consideradas e motivo. Se a decisão substituir outra, marcar a antiga como "substituída por Dxx" em vez de
 apagá-la.

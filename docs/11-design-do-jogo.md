@@ -1,7 +1,9 @@
 # 11 — Design do jogo (GDD inicial)
 
-Este documento é a especificação do crate `game`. Todos os números são **valores iniciais** para serem
-ajustados com o crate `sim` (ver [`04-fase-2-jogo.md`](04-fase-2-jogo.md), seção 2.5). Toda constante deste
+Este documento é a especificação do crate `game`. Todas as regras são originais. Todos os números são
+**valores iniciais** para serem ajustados com o crate `sim` até atingir as metas de
+[`12-balanceamento-de-referencia.md`](12-balanceamento-de-referencia.md); depois disso ficam congelados na
+tag `balance-v1.0`. Toda constante deste
 documento vira uma constante nomeada em um único módulo (`balance.rs`), para que o balanceamento não exija
 procurar números espalhados pelo código.
 
@@ -203,6 +205,10 @@ Garantia (testada): toda luta termina em no máximo 60 turnos.
 ---
 
 ## 10. Pontos a validar com o `sim`
+
+As metas numéricas oficiais, a forma de medir e o congelamento do balanceamento estão em
+[`12-balanceamento-de-referencia.md`](12-balanceamento-de-referencia.md). Os pontos abaixo são as
+preocupações de design que motivaram aquelas metas.
 
 1. Ataque pesado não pode ser a melhor escolha em todas as situações (verificar a taxa de uso por arquétipo).
 2. Build só de Defesa + Vitalidade não pode levar a maioria das lutas à exaustão.

@@ -55,6 +55,7 @@ Toda a documentação de planejamento está em [`docs/`](docs/README.md):
 | [09 — Verificação e testes](docs/09-verificacao-e-testes.md) | CI, matriz manual, métricas |
 | [10 — Cronograma e decisões](docs/10-cronograma-e-decisoes.md) | Prazos, decisões tomadas e pendentes |
 | [11 — Design do jogo](docs/11-design-do-jogo.md) | GDD inicial: atributos, ações, fórmulas, IA |
+| [12 — Balanceamento de referência](docs/12-balanceamento-de-referencia.md) | Metas, congelamento das regras, processo de alteração |
 
 ## Licença
 
