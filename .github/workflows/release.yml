@@ -4,9 +4,13 @@ name: Release
 # SHA256SUMS.txt e atestação de procedência. A publicação é manual, depois de testar o ZIP em uma
 # máquina limpa (docs/05-fase-3-distribuicao.md, seção 1.5).
 
+# Execução apenas manual (aba Actions > Release > Run workflow, escolhendo a tag), para não consumir
+# minutos do GitHub Actions. Para disparar ao enviar uma tag, troque por:
+#   on:
+#     push:
+#       tags: ["v*.*.*"]
 on:
-  push:
-    tags: ["v*.*.*"]
+  workflow_dispatch:
 
 permissions:
   contents: read

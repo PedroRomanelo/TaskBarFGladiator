@@ -16,6 +16,11 @@
 | Manual de plataforma | Máquinas/VMs reais | integração com barra de tarefas | matriz da seção 3 |
 | Soak | Máquina dedicada | vazamentos e estabilidade | overlay CSV + script de perturbação |
 
+> **CI desativado no momento:** os workflows só rodam manualmente (aba Actions > Run workflow) para não
+> consumir minutos do GitHub Actions. Os mesmos comandos rodam localmente: `cargo fmt --all --check`,
+> `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`,
+> `cargo run --release -p sim -- check` e `cargo run --release -p sim -- verify-baseline`.
+
 ## 2. Testes automáticos em detalhe
 
 ### 2.0 Balanceamento (job `balance-check`)
