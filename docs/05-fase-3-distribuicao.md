@@ -6,6 +6,24 @@ com antivírus e SmartScreen.
 
 ---
 
+## 0. Status de implementação
+
+| Item | Status |
+|---|---|
+| 1.5 Pipeline de release (`.github/workflows/release.yml`): testes, metas, baseline, build, ZIP, `SHA256SUMS.txt`, atestação, rascunho de release | feito (dispara com uma tag `v*.*.*`) |
+| 1.6 Assinatura de código | pendente: depende de aprovação no SignPath Foundation ou certificado; o passo está marcado no workflow |
+| 1.7 Distribuição em ZIP portátil | feito; `winget` pendente |
+| 1.8 Documentação de usuário | feito: `docs/LEIA-ME-USUARIO.txt` (vai no ZIP como `LEIA-ME.txt`) |
+| 1.3 Iniciar com o Windows | feito (opção no painel; chave `HKCU\...\Run`). A leitura de `StartupApproved` está pendente |
+| 1.4 Acessibilidade | parcial: reduzir animações e alto contraste automático; escala extra e navegação do painel por teclado pendentes |
+| 1.2 Áudio | não implementado (opcional, desligado por padrão no plano) |
+| 1.1 Soak test de 72 h | pendente: exige máquina Windows; as estatísticas de memória já são registradas no log a cada 10 min |
+
+Para gerar uma versão de teste: `git tag v0.1.0 && git push origin v0.1.0`. O workflow cria um
+rascunho de release no GitHub; nada é publicado automaticamente.
+
+---
+
 ## 1. Tarefas
 
 ### 1.1 Teste de longa duração (soak test)

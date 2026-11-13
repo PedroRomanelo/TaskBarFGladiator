@@ -1,0 +1,74 @@
+name: Release
+
+# Disparado por uma tag de versão (ex.: v0.1.0). Gera um rascunho de release com o ZIP portátil,
+# SHA256SUMS.txt e atestação de procedência. A publicação é manual, depois de testar o ZIP em uma
+# máquina limpa (docs/05-fase-3-distribuicao.md, seção 1.5).
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: build + empacotamento (Windows)
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain (rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - name: Testes
+        run: cargo test --workspace --locked
+      - name: Metas de balanceamento e baseline
+        run: |
+          cargo run --release --locked -p sim -- check
+          cargo run --release --locked -p sim -- verify-baseline
+      - name: Build de release
+        run: cargo build --release --locked -p taskbar-gladiator
+      # Assinatura de código: habilitar quando houver certificado (SignPath Foundation ou outro).
+      # O passo deve assinar target/release/taskbar-gladiator.exe antes do empacotamento.
+      - name: Empacotar
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          $name = "TaskBarFGladiator-$version-windows-x64"
+          $dir = "dist/$name"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          Copy-Item target/release/taskbar-gladiator.exe "$dir/"
+          Copy-Item LICENSE-MIT, LICENSE-APACHE, CHANGELOG.md "$dir/"
+          Copy-Item assets-src/CREDITS.md "$dir/CREDITS.md"
+          Copy-Item docs/LEIA-ME-USUARIO.txt "$dir/LEIA-ME.txt"
+          Compress-Archive -Path "$dir/*" -DestinationPath "dist/$name.zip"
+          $files = @("dist/$name.zip", "target/release/taskbar-gladiator.exe")
+          $lines = foreach ($f in $files) {
+            $h = (Get-FileHash -Algorithm SHA256 $f).Hash.ToLower()
+            "$h  $(Split-Path $f -Leaf)"
+          }
+          $lines | Set-Content -Encoding ascii dist/SHA256SUMS.txt
+          Get-Content dist/SHA256SUMS.txt
+      - name: Atestação de procedência
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.zip
+            target/release/taskbar-gladiator.exe
+      - name: Rascunho da release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" --draft --verify-tag `
+            --title "${{ github.ref_name }}" `
+            --notes "Rascunho gerado pelo CI. Verifique o SHA-256 e a atestação antes de publicar (docs/05)." `
+            dist/*.zip dist/SHA256SUMS.txt

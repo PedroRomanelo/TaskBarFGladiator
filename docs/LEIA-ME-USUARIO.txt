@@ -1,0 +1,36 @@
+TaskBarFGladiator — jogo de gladiador por turnos na barra de tarefas do Windows
+=============================================================================
+
+Requisitos: Windows 10 22H2 ou Windows 11. Não precisa de instalação nem de internet.
+
+COMO USAR
+- Extraia o ZIP em qualquer pasta e abra taskbar-gladiator.exe.
+- A faixa aparece sobre a barra de tarefas. Segure e arraste para mudar a posição.
+- Clique esquerdo nos botões da faixa. Clique direito abre o painel (ficha, loja, liga,
+  configurações). Esc ou clicar fora fecha o painel.
+- Ícone na bandeja (ao lado do relógio): mostrar/ocultar, pausar, painel, reposicionar, sair.
+- Modo automático: no painel, aba FICHA, botão TROCAR na linha MODO.
+
+AVISO DO WINDOWS ("O Windows protegeu o computador")
+Executáveis novos ou sem assinatura de código podem mostrar esse aviso. Antes de executar, confira se
+o arquivo é o oficial comparando o SHA-256 com o arquivo SHA256SUMS.txt da página de releases:
+  PowerShell:  Get-FileHash .\taskbar-gladiator.exe -Algorithm SHA256
+Também é possível verificar a atestação de procedência com o GitHub CLI:
+  gh attestation verify taskbar-gladiator.exe --repo PedroRomanelo/TaskBarFGladiator
+
+ONDE FICAM OS DADOS
+- Save e configurações: %APPDATA%\TaskBarFGladiator\
+  (save.json, save.json.bak, config.json). Copie a pasta para fazer backup.
+- Logs: %LOCALAPPDATA%\TaskBarFGladiator\logs\
+
+DESINSTALAR
+1. Se ativou "Iniciar com o Windows", desative no painel (aba CONFIG) antes.
+2. Feche o jogo (bandeja > Sair).
+3. Apague o executável e as pastas %APPDATA%\TaskBarFGladiator e %LOCALAPPDATA%\TaskBarFGladiator.
+
+PRIVACIDADE E SEGURANÇA
+O jogo não usa rede, não coleta dados, não pede permissão de administrador e não modifica o
+Explorer. Detalhes: docs/07-seguranca.md no repositório.
+
+Licença: código MIT OR Apache-2.0; arte CC-BY-4.0.
+Código-fonte e problemas: https://github.com/PedroRomanelo/TaskBarFGladiator

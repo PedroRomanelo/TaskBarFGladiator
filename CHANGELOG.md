@@ -28,6 +28,8 @@ A seção **Balanceamento** registra toda mudança de regras ou conteúdo (ver
   animação por passos, textos pt-BR/en, save atômico com backup em thread separada, configuração,
   log com rotação, relatório de crash, manifesto (asInvoker, PerMonitorV2, UTF-8, SegmentHeap).
 - CI: teste de fumaça do executável no Windows.
+- Workflow de release (tag `v*.*.*`): testes, metas, baseline, build, ZIP portátil, `SHA256SUMS.txt`,
+  atestação de procedência e rascunho de release. `docs/LEIA-ME-USUARIO.txt` incluído no ZIP.
 
 ### Balanceamento
 - Baseline inicial criado (`balance/`). Todas as 22 metas de `docs/12` atendidas. Metas P3, P4 e P6
