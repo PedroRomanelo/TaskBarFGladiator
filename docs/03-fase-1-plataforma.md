@@ -11,6 +11,50 @@ menu, e que se mantém correto em toda a matriz descrita em [`09-verificacao-e-t
 
 ---
 
+## 0. Status de implementação
+
+Implementado em `crates/platform` (Windows em `src/win/`, cálculo portável em `src/layout.rs`) e
+integrado em `app/src/win_main.rs`. **Compilação verificada para `x86_64-pc-windows-msvc` e teste de
+fumaça no CI (o executável inicia e roda 10 s sem crash). A validação real só pode ser feita
+manualmente no Windows**, seguindo a matriz de [`09-verificacao-e-testes.md`](09-verificacao-e-testes.md),
+seção 3.
+
+| Item | Status | Onde |
+|---|---|---|
+| 1.1 Ordem de inicialização (DLL, panic, log, instância, config, janela) | feito | `app/src/win_main.rs::run` |
+| 1.2 Instância única + aviso à instância existente | feito | `win/system.rs` |
+| 1.3 Janela `WS_EX_LAYERED \| TOOLWINDOW \| TOPMOST \| NOACTIVATE`, `MA_NOACTIVATE` | feito | `win/window.rs` |
+| 1.4 Estado por janela (identificador inteiro em `GWLP_USERDATA`, sem ponteiro a liberar) | feito | `win/window.rs` |
+| 1.5 Localização da barra (`ABM_GETTASKBARPOS`, auto-hide, monitor, DPI, área de notificação) | feito | `win/shell.rs` |
+| 1.6 Posição + arrastar + deslocamento salvo por monitor | feito | `layout.rs`, `win_main.rs` |
+| 1.7 Hooks de WinEvent fora de contexto (barra restrita ao processo do Explorer; primeiro plano) | feito | `win/shell.rs` |
+| 1.7 `TaskbarCreated`, `WM_DISPLAYCHANGE`, `WM_DPICHANGED`, `WM_SETTINGCHANGE`, sessão, energia | feito | `win/window.rs` |
+| 1.8 Tela cheia (`SHQueryUserNotificationState` + heurística de retângulo) | feito | `win/shell.rs` |
+| 1.9 Ícone da bandeja (sem `NIF_GUID`, ver B17) e menu com `SetForegroundWindow`/`WM_NULL` | feito | `win/tray.rs` |
+| 1.10 Modo flutuante (barra ausente, vertical ou superior) | feito | `layout.rs` |
+| 1.11 Log com rotação e relatório de crash | feito | `app/src/logging.rs` |
+| 1.12 Overlay de depuração | parcial: estatísticas de memória/GDI/USER registradas no log a cada 10 min | `win_main.rs` |
+| Ícone próprio do executável e recurso de versão | pendente (usa o ícone padrão do Windows) | — |
+| Detecção de disputa de z-order (limite de 4/s, pausa de 30 s) | feito | `win/mod.rs` |
+
+### Como testar no Windows
+
+```
+git clone https://github.com/PedroRomanelo/TaskBarFGladiator
+cd TaskBarFGladiator
+cargo run --release
+```
+Requisitos: Rust (via `rustup`, a versão é instalada automaticamente) e as Build Tools do Visual Studio
+(componente "Desenvolvimento para desktop com C++"). O log fica em
+`%LOCALAPPDATA%\TaskBarFGladiator\logs\game.log`; o save e a configuração em
+`%APPDATA%\TaskBarFGladiator\`.
+
+Uso: clique esquerdo nos botões da faixa; clique direito (ou o botão de menu) abre o painel; segure e
+arraste a faixa para reposicioná-la; o ícone da bandeja tem o menu (mostrar/ocultar, pausar, painel,
+reposicionar, sair).
+
+---
+
 ## 1. Tarefas
 
 ### 1.1 Inicialização do processo (ordem importa)

@@ -6,8 +6,24 @@ para ficar aberto o dia inteiro.
 
 > **Status:** em desenvolvimento. Concluídos: Fase 0 (repositório, CI, licenças) e o núcleo do jogo
 > (crate `game`: combate, IA, progressão, save) com o simulador de balanceamento e o baseline congelado.
-> Renderização e arte prontas (crates `render` e `assets`). Falta a integração com o Windows
-> (crate `platform` e executável): o jogo ainda não é jogável.
+> Integração com o Windows implementada (crate `platform` e executável), com compilação e teste de
+> fumaça no CI. **Ainda não validada manualmente em um Windows real**: veja como testar abaixo.
+
+## Como compilar e testar (Windows)
+
+Requisitos: [Rust](https://rustup.rs) e as Build Tools do Visual Studio (componente
+"Desenvolvimento para desktop com C++").
+
+```
+git clone https://github.com/PedroRomanelo/TaskBarFGladiator
+cd TaskBarFGladiator
+cargo run --release
+```
+
+- Faixa: clique esquerdo nos botões; clique direito abre o painel; segure e arraste para mover.
+- Ícone da bandeja: mostrar/ocultar, pausar, painel, reposicionar, sair.
+- Save e configuração: `%APPDATA%\TaskBarFGladiator\`. Log: `%LOCALAPPDATA%\TaskBarFGladiator\logs\`.
+- Lista do que testar: [`docs/09-verificacao-e-testes.md`](docs/09-verificacao-e-testes.md), seção 3.
 >
 > O nome "TaskBarFGladiator" é provisório. O nome definitivo do jogo ainda não foi escolhido
 > (pendência P1 em [`docs/10-cronograma-e-decisoes.md`](docs/10-cronograma-e-decisoes.md)).

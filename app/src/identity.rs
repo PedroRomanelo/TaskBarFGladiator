@@ -1,7 +1,5 @@
 //! Identidade do aplicativo. O nome definitivo do jogo ainda não foi escolhido
 //! (pendência P1 em `docs/10-cronograma-e-decisoes.md`); todos os nomes derivados ficam aqui.
-// Constantes usadas a partir da Fase 1 (pastas de dados, classes de janela, mutex).
-#![allow(dead_code)]
 
 /// Nome exibido ao usuário.
 pub const DISPLAY_NAME: &str = "TaskBarFGladiator";

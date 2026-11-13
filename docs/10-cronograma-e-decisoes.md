@@ -114,6 +114,26 @@ Itens, ligas, oponentes e constantes de regras ficam em arquivos JSON em `crates
 no executável e validados na carga. Permite alterar o conteúdo sem mexer no motor. A versão do balanceamento é
 derivada do hash desses arquivos. Formato em [`14-formato-do-conteudo.md`](14-formato-do-conteudo.md).
 
+**D22 — Loop de eventos sem estado compartilhado com o procedimento de janela.**
+O procedimento de janela e os callbacks de WinEvent só enfileiram eventos numa fila por thread; o
+`handler` do aplicativo, dono da `Platform`, processa a fila depois que `DispatchMessageW` retorna.
+Cada janela guarda em `GWLP_USERDATA` apenas um inteiro (identificador), sem ponteiro para liberar.
+Elimina a classe de bugs de reentrância e de uso após liberação descrita em `docs/03`, seção 2.6.
+
+**D23 — Lint `clippy::multiple_unsafe_ops_per_block` permitido no crate `platform`.**
+Chamadas FFI encadeiam vários passos inseguros; separar cada um em um bloco dobraria o código sem
+ganho de segurança. Continua obrigatório o comentário `// SAFETY:` em todo bloco
+(`undocumented_unsafe_blocks` em nível deny).
+
+**D24 — Manifesto embutido pelo linker do MSVC, sem compilador de recursos.**
+`app/build.rs` passa `/MANIFEST:EMBED /MANIFESTINPUT:app.manifest` ao linker. Evita dependência de
+`rc.exe`/crates de recursos. Consequência: o recurso de versão e o ícone próprio do executável ficam
+pendentes (exigem arquivo `.rc`).
+
+**D25 — Arte como mapas de caracteres e PNG mínimo próprio.**
+Sprites, ícones e fonte são grades de texto no código (`crates/assets`); as capturas usam um codificador
+PNG próprio sem compressão. Nenhuma dependência de imagem no executável.
+
 ## 3. Decisões pendentes
 
 | ID | Decisão | Prazo | Responsável |
@@ -129,6 +149,6 @@ derivada do hash desses arquivos. Formato em [`14-formato-do-conteudo.md`](14-fo
 
 ## 4. Como registrar uma nova decisão
 
-Adicionar na seção 2 com o próximo ID (`D22`, `D23`...), contendo: decisão, contexto, alternativas
+Adicionar na seção 2 com o próximo ID (`D26`, `D27`...), contendo: decisão, contexto, alternativas
 consideradas e motivo. Se a decisão substituir outra, marcar a antiga como "substituída por Dxx" em vez de
 apagá-la.

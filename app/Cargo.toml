@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 publish.workspace = true
+build = "build.rs"
 
 [[bin]]
 name = "taskbar-gladiator"
@@ -16,6 +17,8 @@ game.workspace = true
 render.workspace = true
 assets.workspace = true
 platform.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

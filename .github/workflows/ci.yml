@@ -61,6 +61,19 @@ jobs:
           $size = (Get-Item target/release/taskbar-gladiator.exe).Length
           Write-Host "Tamanho: $size bytes"
           if ($size -gt 3MB) { throw "Executável maior que 3 MB" }
+      - name: Smoke test (inicia, roda 10 s, sem crash)
+        shell: pwsh
+        run: |
+          $logs = Join-Path $env:LOCALAPPDATA "TaskBarFGladiator\logs"
+          $p = Start-Process -FilePath target/release/taskbar-gladiator.exe -PassThru
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) { throw "O executável encerrou sozinho (código $($p.ExitCode))" }
+          Stop-Process -Id $p.Id -Force
+          if (Test-Path $logs) {
+            Get-ChildItem $logs | Format-Table Name, Length
+            Get-Content (Join-Path $logs "game.log") -ErrorAction SilentlyContinue
+            if (Get-ChildItem $logs -Filter "crash-*.txt") { throw "Relatório de crash gerado" }
+          }
 
   balance:
     name: balanceamento (metas + baseline)
