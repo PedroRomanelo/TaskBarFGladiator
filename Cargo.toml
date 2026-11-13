@@ -1,0 +1,38 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "app"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/PedroRomanelo/TaskBarFGladiator"
+publish = false
+
+[workspace.dependencies]
+game = { path = "crates/game" }
+render = { path = "crates/render" }
+assets = { path = "crates/assets" }
+platform = { path = "crates/platform" }
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "deny"
+multiple_unsafe_ops_per_block = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+
+[profile.dev]
+overflow-checks = true
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+overflow-checks = true

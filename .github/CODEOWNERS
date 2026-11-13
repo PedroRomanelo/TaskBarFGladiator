@@ -1,0 +1,4 @@
+# Código com `unsafe` e integração com o Windows exige revisão do mantenedor.
+/crates/platform/ @PedroRomanelo
+/deny.toml @PedroRomanelo
+/.github/workflows/ @PedroRomanelo

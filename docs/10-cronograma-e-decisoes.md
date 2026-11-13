@@ -98,6 +98,22 @@ tag `balance-v1.0`. Detalhes em [`12-balanceamento-de-referencia.md`](12-balance
 Contexto: o autor não indicou preferência sobre quem define as metas. As metas iniciais estão no documento 12,
 seção 3, e ficam pendentes de revisão (P8) antes do início da Fase 2.
 
+**D19 — Rust 1.97.0, edição 2024; nome provisório isolado.**
+Resolve P4. A versão fica fixada em `rust-toolchain.toml`. Enquanto P1 não for decidida, o nome
+provisório "TaskBarFGladiator" (binário `taskbar-gladiator`) fica concentrado em `app/src/identity.rs`.
+
+**D20 — Ordem de implementação adaptada ao ambiente de desenvolvimento.**
+Contexto: o desenvolvimento assistido acontece em um container Linux, onde o executável Windows não pode
+ser executado. Decisão: implementar primeiro o que é totalmente verificável (`game`, `sim`, `render`), e a
+plataforma depois, com compilação verificada para `x86_64-pc-windows-msvc`. A execução e a matriz manual da
+Fase 1 ficam com o autor, no Windows. O princípio "risco primeiro" continua valendo para a validação:
+a plataforma deve ser testada manualmente assim que a primeira versão compilar.
+
+**D21 — Conteúdo e regras orientados a dados.**
+Itens, ligas, oponentes e constantes de regras ficam em arquivos JSON em `crates/game/content/`, embutidos
+no executável e validados na carga. Permite alterar o conteúdo sem mexer no motor. `BALANCE_VERSION` é
+derivado do hash desses arquivos. Formato em [`14-formato-do-conteudo.md`](14-formato-do-conteudo.md).
+
 ## 3. Decisões pendentes
 
 | ID | Decisão | Prazo | Responsável |
@@ -105,7 +121,7 @@ seção 3, e ficam pendentes de revisão (P8) antes do início da Fase 2.
 | P1 | Nome definitivo do jogo | Fase 0 | Autor |
 | P2 | Estilo de arte (paleta, proporção dos sprites) | Início da Fase 2 | Autor |
 | P3 | Serviço de assinatura de código (SignPath ou outro) | Fase 0/1 (solicitar) | Autor |
-| P4 | Edição do Rust (2021 ou 2024) e versão fixada | Fase 0 | Autor |
+| ~~P4~~ | ~~Edição do Rust e versão fixada~~ — resolvida em D19 | — | — |
 | P5 | Detecção automática do espaço livre via UI Automation | Pós-1.0 | — |
 | P6 | Suporte nativo a barra vertical | Pós-1.0 | — |
 | P7 | Progresso offline e seus limites | Pós-1.0 | — |
@@ -113,6 +129,6 @@ seção 3, e ficam pendentes de revisão (P8) antes do início da Fase 2.
 
 ## 4. Como registrar uma nova decisão
 
-Adicionar na seção 2 com o próximo ID (`D19`, `D20`...), contendo: decisão, contexto, alternativas
+Adicionar na seção 2 com o próximo ID (`D22`, `D23`...), contendo: decisão, contexto, alternativas
 consideradas e motivo. Se a decisão substituir outra, marcar a antiga como "substituída por Dxx" em vez de
 apagá-la.

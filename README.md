@@ -4,7 +4,7 @@ Jogo **original** de gladiador por turnos que roda dentro da área da **barra de
 100 % offline, escrito em **Rust**, com foco em segurança, baixo consumo de memória e CPU, e estabilidade
 para ficar aberto o dia inteiro.
 
-> **Status:** em planejamento (Fase 0). Ainda não há código executável.
+> **Status:** em desenvolvimento. Fase 0 (repositório, CI, licenças) concluída; jogo ainda não jogável.
 >
 > O nome "TaskBarFGladiator" é provisório. O nome definitivo do jogo será escolhido na Fase 0
 > (ver [`docs/10-cronograma-e-decisoes.md`](docs/10-cronograma-e-decisoes.md)).

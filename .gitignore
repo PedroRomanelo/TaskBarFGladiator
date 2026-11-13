@@ -1,0 +1,10 @@
+/target/
+/fuzz/target/
+/fuzz/corpus/
+/fuzz/artifacts/
+*.pdb
+*.swp
+.idea/
+.vscode/
+.DS_Store
+/balance/compare.md

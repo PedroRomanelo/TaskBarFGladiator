@@ -1,0 +1,23 @@
+name: Sugestão
+description: Ideia de melhoria ou nova funcionalidade
+labels: [sugestao]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Problema ou motivação
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Proposta
+    validations:
+      required: true
+  - type: checkboxes
+    id: conteudo
+    attributes:
+      label: Conteúdo de terceiros
+      options:
+        - label: A sugestão não inclui nomes, arte, textos ou código de outros jogos.
+          required: true

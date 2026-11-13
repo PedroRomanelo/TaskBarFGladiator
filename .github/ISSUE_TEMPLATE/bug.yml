@@ -1,0 +1,64 @@
+name: Bug
+description: Algo não funciona como deveria
+labels: [bug]
+body:
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que aconteceu
+      description: Descreva o problema e o que você esperava que acontecesse.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: versao-jogo
+    attributes:
+      label: Versão do jogo
+      description: Painel > Sobre
+    validations:
+      required: true
+  - type: input
+    id: winver
+    attributes:
+      label: Versão do Windows
+      description: Resultado de `winver` (ex.: Windows 11 24H2, build 26100.xxxx)
+    validations:
+      required: true
+  - type: input
+    id: dpi
+    attributes:
+      label: Escala de exibição (DPI)
+      placeholder: 100 %, 125 %, 150 %...
+  - type: input
+    id: monitores
+    attributes:
+      label: Monitores
+      placeholder: "Ex.: 2 monitores; barra em todos; principal 1920x1080 a 125 %"
+  - type: dropdown
+    id: barra
+    attributes:
+      label: Posição e modo da barra de tarefas
+      multiple: true
+      options:
+        - Inferior
+        - Superior
+        - Esquerda
+        - Direita
+        - Ocultar automaticamente ligado
+        - Ícones centralizados
+        - Ícones à esquerda
+        - Ferramenta de personalização da barra (ExplorerPatcher, StartAllBack etc.)
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: Conteúdo de `%LOCALAPPDATA%\TaskBarFGladiator\logs\` (remova dados pessoais).
+      render: text
