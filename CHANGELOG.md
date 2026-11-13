@@ -16,6 +16,11 @@ A seção **Balanceamento** registra toda mudança de regras ou conteúdo (ver
 - Crate `sim`: matriz de lutas, carreiras completas, conferência de metas, baseline e comparação.
 - Testes: unitários, de propriedade (`proptest`), replays gravados; job de CI `balance`.
 - `docs/14-formato-do-conteudo.md`.
+- Crate `assets`: arte original (lutador em 4 quadros, 11 ícones, fonte 3×6 com acentos) definida como
+  mapas de caracteres, sem decodificador de imagem.
+- Crate `render`: superfície BGRA premultiplicada, texto com contorno, faixa (luta manual/automática,
+  fora de luta, resultado) e painel com regiões clicáveis; temas claro, escuro e alto contraste;
+  codificador PNG mínimo; golden images e teste de zero alocação por quadro.
 
 ### Balanceamento
 - Baseline inicial criado (`balance/`). Todas as 22 metas de `docs/12` atendidas. Metas P3, P4 e P6

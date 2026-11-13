@@ -6,7 +6,8 @@ para ficar aberto o dia inteiro.
 
 > **Status:** em desenvolvimento. Concluídos: Fase 0 (repositório, CI, licenças) e o núcleo do jogo
 > (crate `game`: combate, IA, progressão, save) com o simulador de balanceamento e o baseline congelado.
-> Ainda sem interface gráfica: o jogo não é jogável no Windows.
+> Renderização e arte prontas (crates `render` e `assets`). Falta a integração com o Windows
+> (crate `platform` e executável): o jogo ainda não é jogável.
 >
 > O nome "TaskBarFGladiator" é provisório. O nome definitivo do jogo ainda não foi escolhido
 > (pendência P1 em [`docs/10-cronograma-e-decisoes.md`](docs/10-cronograma-e-decisoes.md)).
@@ -19,6 +20,20 @@ para ficar aberto o dia inteiro.
 - Modo **manual** (você escolhe cada ação com o mouse) e modo **automático** (a IA luta por você com a
   estratégia que você escolheu, enquanto você trabalha).
 - Um painel expandido (janela acima da barra) para ficha, loja, torneios e configurações.
+
+### Pré-visualização (renderização atual, gerada por `cargo run -p render --example preview`)
+
+Faixa em luta, modo manual (barra de tarefas de 72 px, tema escuro):
+
+![Faixa em luta](docs/img/faixa-luta-manual.png)
+
+Faixa fora de luta (48 px, tema claro):
+
+![Faixa fora de luta](docs/img/faixa-hub-tema-claro.png)
+
+Painel expandido (aba Loja):
+
+![Painel](docs/img/painel-loja.png)
 
 ## O que não é
 
