@@ -19,8 +19,9 @@ com antivírus e SmartScreen.
 | 1.2 Áudio | não implementado (opcional, desligado por padrão no plano) |
 | 1.1 Soak test de 72 h | pendente: exige máquina Windows; as estatísticas de memória já são registradas no log a cada 10 min |
 
-Para gerar uma versão de teste: `git tag v0.1.0 && git push origin v0.1.0`. O workflow cria um
-rascunho de release no GitHub; nada é publicado automaticamente.
+Para gerar uma versão de teste: aba **Actions → Release → Run workflow**, informando a versão (ex.:
+`v0.1.0`). O workflow cria um rascunho de release no GitHub apontando para o commit atual da `main`;
+a tag é criada quando o rascunho é publicado. Nada é publicado automaticamente.
 
 ---
 

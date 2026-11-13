@@ -4,13 +4,16 @@ name: Release
 # SHA256SUMS.txt e atestação de procedência. A publicação é manual, depois de testar o ZIP em uma
 # máquina limpa (docs/05-fase-3-distribuicao.md, seção 1.5).
 
-# Execução apenas manual (aba Actions > Release > Run workflow, escolhendo a tag), para não consumir
-# minutos do GitHub Actions. Para disparar ao enviar uma tag, troque por:
-#   on:
-#     push:
-#       tags: ["v*.*.*"]
+# Execução apenas manual (aba Actions > Release > Run workflow, informando a versão), para não consumir
+# minutos do GitHub Actions. O rascunho aponta para o commit em que o workflow rodou; a tag é criada
+# pelo GitHub ao publicar o rascunho.
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Versão (tag criada ao publicar o rascunho), ex.: v0.1.0"
+        required: true
+        default: "v0.1.0"
 
 permissions:
   contents: read
@@ -30,6 +33,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Validar versão
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:VERSION -notmatch '^v\d+\.\d+\.\d+$') { throw "Versão inválida: $env:VERSION" }
       - name: Toolchain (rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - name: Testes
@@ -44,8 +53,10 @@ jobs:
       # O passo deve assinar target/release/taskbar-gladiator.exe antes do empacotamento.
       - name: Empacotar
         shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          $version = "${{ github.ref_name }}"
+          $version = $env:VERSION
           $name = "TaskBarFGladiator-$version-windows-x64"
           $dir = "dist/$name"
           New-Item -ItemType Directory -Force -Path $dir | Out-Null
@@ -71,8 +82,10 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
         run: |
-          gh release create "${{ github.ref_name }}" --draft --verify-tag `
-            --title "${{ github.ref_name }}" `
+          # A tag é criada pelo GitHub no commit abaixo quando o rascunho for publicado.
+          gh release create "$env:VERSION" --draft --target "${{ github.sha }}" `
+            --title "$env:VERSION" `
             --notes "Rascunho gerado pelo CI. Verifique o SHA-256 e a atestação antes de publicar (docs/05)." `
             dist/*.zip dist/SHA256SUMS.txt
