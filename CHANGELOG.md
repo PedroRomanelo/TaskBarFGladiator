@@ -6,6 +6,11 @@ A seção **Balanceamento** registra toda mudança de regras ou conteúdo (ver
 
 ## [Não lançado]
 
+## [0.1.0] — 2026-11-13
+
+Primeira versão de teste. Compilada e com teste de fumaça no Windows do CI, **ainda não validada
+manualmente em um Windows real**.
+
 ### Adicionado
 - Documentação de planejamento em `docs/`.
 - Workspace Rust (`game`, `render`, `assets`, `platform`, `sim`, executável), CI, `cargo-deny`, licenças e
