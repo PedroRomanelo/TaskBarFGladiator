@@ -1,0 +1,28 @@
+{
+  "leagues": [
+    {
+      "id": 1,
+      "name": { "pt": "Liga do Porto", "en": "Harbor League" },
+      "opponents": [
+        { "id": 1, "name": "Taro, o Pescador", "level": 1, "archetype": "balanced",
+          "build": [1, 1, 1, 1, 1, 1], "weapon": 1, "armor": null, "shield": null },
+        { "id": 2, "name": "Verna das Docas", "level": 2, "archetype": "aggressive",
+          "build": [3, 1, 1, 1, 2, 2], "weapon": 1, "armor": 101, "shield": null },
+        { "id": 3, "name": "Ossian Mão-Pesada", "level": 4, "archetype": "aggressive",
+          "build": [4, 1, 1, 1, 2, 1], "weapon": 2, "armor": 101, "shield": null },
+        { "id": 4, "name": "Lira Passo-Leve", "level": 6, "archetype": "opportunist",
+          "build": [1, 3, 3, 1, 1, 2], "weapon": 2, "armor": 101, "shield": 201 },
+        { "id": 5, "name": "Bram, o Muro", "level": 8, "archetype": "defensive",
+          "build": [1, 1, 1, 3, 3, 2], "weapon": 2, "armor": 102, "shield": 202 },
+        { "id": 6, "name": "Ilka Lâmina-Fria", "level": 10, "archetype": "opportunist",
+          "build": [2, 3, 2, 1, 2, 1], "weapon": 3, "armor": 102, "shield": 201 },
+        { "id": 7, "name": "Dorn, o Teimoso", "level": 12, "archetype": "defensive",
+          "build": [2, 1, 1, 3, 3, 2], "weapon": 3, "armor": 103, "shield": 202 },
+        { "id": 8, "name": "Sela Fúria-Rubra", "level": 14, "archetype": "aggressive",
+          "build": [4, 2, 1, 1, 2, 2], "weapon": 4, "armor": 103, "shield": 202 },
+        { "id": 9, "name": "Castor, o Invicto", "level": 16, "archetype": "balanced",
+          "build": [2, 2, 2, 2, 2, 2], "weapon": 4, "armor": 103, "shield": 203 }
+      ]
+    }
+  ]
+}

@@ -4,7 +4,7 @@ Este documento é a especificação do crate `game`. Todas as regras são origin
 **valores iniciais** para serem ajustados com o crate `sim` até atingir as metas de
 [`12-balanceamento-de-referencia.md`](12-balanceamento-de-referencia.md); depois disso ficam congelados na
 tag `balance-v1.0`. Toda constante deste
-documento vira uma constante nomeada em um único módulo (`balance.rs`), para que o balanceamento não exija
+documento vira um valor nos arquivos `crates/game/content/*.json`, para que o balanceamento não exija
 procurar números espalhados pelo código.
 
 Convenções:
@@ -31,16 +31,20 @@ Personagem novo: todos os atributos em 5 e **10 pontos** livres para distribuir.
 
 ### 1.2 Atributos derivados
 
-| Derivado | Fórmula inicial |
+> Os valores abaixo são os do baseline atual (`crates/game/content/rules.json`). O arquivo JSON é a
+> fonte da verdade; esta tabela é atualizada junto com o baseline.
+
+| Derivado | Fórmula (baseline atual) |
 |---|---|
-| HP máximo | `50 + 8 × Vitalidade + 2 × Nível` |
-| Fôlego máximo | `30 + 4 × Fôlego` |
-| Recuperação de fôlego por turno | `2 + Fôlego / 5` |
-| Dano base | `4 + Força + dano_da_arma` |
-| Chance de crítico | `50‰ + Técnica × 2,5‰`, máximo 300‰ |
+| HP máximo | `30 + 4 × Vitalidade + 2 × Nível` |
+| Fôlego máximo | `30 + 5 × Fôlego − penalidade_do_escudo`, mínimo 10 |
+| Recuperação de fôlego por turno | `3 + Fôlego / 3` |
+| Dano base | `9 + 0,7 × Força + dano_da_arma` |
+| Chance de crítico | `50‰ + Técnica × 4‰`, máximo 300‰ |
 | Multiplicador de crítico | ×1,5 |
 | Iniciativa | `Agilidade + d10` (sorteado a cada rodada) |
-| Absorção | `4 × Defesa + armadura + escudo` |
+| Absorção | `3 × Defesa + armadura + escudo` |
+| Agilidade efetiva | `Agilidade − penalidade_da_armadura`, mínimo 1 |
 
 ---
 
@@ -61,10 +65,10 @@ Personagem novo: todos os atributos em 5 e **10 pontos** livres para distribuir.
 |---|---|---|---|---|---|
 | Avançar | 3 | — | — | — | move 1 casa em direção ao oponente |
 | Recuar | 3 | — | — | — | move 1 casa para longe do oponente |
-| Ataque leve | 6 | 1–2 | 850‰ (−150‰ a distância 2) | ×0,7 | — |
+| Ataque leve | 6 | 1–2 | 850‰ (−300‰ a distância 2) | ×0,65 | — |
 | Ataque médio | 12 | 1 | 700‰ | ×1,0 | — |
-| Ataque pesado | 22 | 1 | 500‰ | ×1,6 | +50‰ de chance de crítico |
-| Defender | 0 | — | — | — | dano recebido ×0,5 até o fim da próxima ação do oponente |
+| Ataque pesado | 22 | 1 | 480‰ | ×1,5 | +50‰ de chance de crítico |
+| Defender | 0 | — | — | — | dano recebido ×0,75 até o fim da próxima ação do oponente |
 | Recuperar | 0 | — | — | — | recupera 3 × recuperação por turno; dano recebido ×1,25 até a próxima ação própria |
 | Provocar | 4 | — | — | — | próximo ataque: +150‰ crítico e dano ×1,1; absorção própria −20 % até a próxima ação própria |
 
@@ -73,6 +77,8 @@ Regras de validade:
 - Recuar é inválido encostado na parede (casa 0 ou 9).
 - Ataques são inválidos fora do alcance ou sem fôlego suficiente.
 - Defender e Recuperar são sempre válidas (garantem que sempre existe uma ação possível).
+- Uma ação que deixou de ser válida por causa da ação do oponente na mesma rodada (por exemplo, o
+  oponente agiu primeiro e recuou para fora do alcance) é trocada por Defender, sem custo.
 - O custo de fôlego das ações de ataque aumenta com o peso da arma (seção 5).
 
 ---
@@ -80,22 +86,23 @@ Regras de validade:
 ## 4. Resolução de um ataque
 
 1. **Chance de acerto:**
-   `acerto = precisão_base + mod_precisão_arma + (Técnica_atacante − Agilidade_defensor) × 10‰`,
+   `acerto = precisão_base + mod_precisão_arma − penalidade_de_distância + (Técnica_atacante − Agilidade_defensor) × 15‰`,
    limitada a [100‰, 950‰]. Sorteio `rng.chance(acerto)`.
 2. **Se errou:** fim da ação (evento "errou").
 3. **Dano bruto:** `dano_base × multiplicador_da_ação`, com variação aleatória de ±10 %
    (`rng.range(900, 1100)` em ‰).
 4. **Crítico:** sorteio com a chance de crítico (+ bônus da ação e da provocação). Se crítico, ×1,5.
 5. **Redução:** `dano = dano_bruto × 100 / (100 + absorção_defensor)`.
-6. **Modificadores de postura do defensor:** Defender ×0,5; Recuperar ×1,25.
+6. **Modificadores de postura do defensor:** Defender ×0,75; Recuperar ×1,25; absorção ×0,8 se o
+   defensor provocou na própria última ação.
 7. **Mínimo:** um acerto causa pelo menos 1 de dano.
 8. HP do defensor `saturating_sub(dano)`.
 
-Exemplo numérico (nível 1, atacante Força 10 / Técnica 8, arma +3 de dano; defensor Agilidade 6 /
-Defesa 5, sem armadura), ataque médio:
-- acerto = 700 + (8 − 6) × 10 = 720‰
-- dano base = 4 + 10 + 3 = 17; bruto ×1,0 = 17 (sem variação para o exemplo)
-- absorção = 4 × 5 = 20 → dano = 17 × 100 / 120 = 14
+Exemplo numérico com o baseline atual (atacante Força 10 / Técnica 8, espada curta +4 de dano e
++20‰ de precisão; defensor Agilidade 6 / Defesa 5, sem armadura), ataque médio a distância 1:
+- acerto = 700 + 20 + (8 − 6) × 15 = 750‰
+- dano base = 9 + 10 × 0,7 + 4 = 20; bruto ×1,0 = 20 (sem variação para o exemplo)
+- absorção = 3 × 5 = 15 → dano = 20 × 100 / 115 = 17
 
 ---
 
@@ -134,14 +141,14 @@ Nomes genéricos e descritivos; todos originais.
 
 ## 6. Progressão
 
-| Item | Fórmula inicial |
+| Item | Fórmula (baseline atual) |
 |---|---|
-| XP para passar do nível n para n+1 | `40 + 30 × n + 5 × n²` |
+| XP para passar do nível n para n+1 | `30 + 20 × n + 3 × n²` |
 | Pontos de atributo por nível | 3 |
 | Nível máximo na 1.0 | 30 |
 | XP por vitória | `20 + 8 × nível_oponente` (+50 % se o oponente tiver nível maior) |
 | XP por derrota | 50 % da vitória |
-| Ouro por vitória | `20 + 10 × nível_oponente` |
+| Ouro por vitória | `15 + 6 × nível_oponente` |
 | Ouro por derrota | 25 % da vitória |
 
 - **Derrota não é permanente:** o lutador perde apenas a recompensa integral. HP e fôlego são restaurados
@@ -177,16 +184,18 @@ dado o estado do RNG.
 | Fôlego após a ação | quanto fôlego resta em relação ao máximo |
 | Distância ideal | proximidade da distância preferida do arquétipo |
 | Oportunidade | oponente com fôlego baixo, em postura Recuperar, ou com HP baixo |
+| Potencial | melhor dano esperado que poderá causar a partir da nova distância no próximo turno (60 % do peso do dano imediato); sem esse fator a IA nunca entra no alcance do oponente |
 
 ### 8.3 Arquétipos
 | Arquétipo | Distância preferida | Comportamento resultante |
 |---|---|---|
-| **Agressivo** | 1 | prioriza dano esperado; usa ataque pesado com fôlego > 50 %; raramente defende |
+| **Agressivo** | 1 | prioriza dano esperado; considera o ataque pesado com fôlego ≥ 70 %; raramente defende |
 | **Defensivo** | 2 | prioriza reduzir risco; usa ataque leve a distância 2; defende quando o oponente tem fôlego para ataque pesado |
 | **Oportunista** | 1–2 | provoca quando o oponente está longe ou sem fôlego; ataque pesado quando o oponente usou Recuperar ou está com fôlego baixo |
 | **Equilibrado** (só jogador, modo automático) | 1 | pesos médios |
 
-No modo automático, o jogador escolhe a estratégia (um dos quatro) no painel.
+No modo automático, o jogador escolhe a estratégia (um dos quatro) no painel. Os pesos numéricos de
+cada arquétipo ficam em `rules.json` (`archetypes`).
 
 ---
 
@@ -215,4 +224,5 @@ preocupações de design que motivaram aquelas metas.
 3. Agilidade alta não pode tornar o lutador praticamente impossível de acertar (limite inferior de 100‰
    existe por isso; verificar se é suficiente).
 4. Progressão: jogador com build média deve conseguir vencer o campeão da liga 1 por volta do nível 15–18.
-5. Preços: o jogador deve conseguir comprar um item novo a cada 2–4 vitórias.
+5. Preços: o jogador deve continuar tendo o que comprar até o fim da liga (com 12 itens e uma campanha de
+   ~110 lutas, isso dá uma compra a cada 4–8 vitórias).

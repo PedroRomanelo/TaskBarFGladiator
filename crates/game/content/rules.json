@@ -1,0 +1,159 @@
+{
+  "arena": {
+    "cells": 10,
+    "player_start": 2,
+    "opponent_start": 7
+  },
+  "attributes": {
+    "min": 1,
+    "max": 99,
+    "start_value": 5,
+    "start_free_points": 10,
+    "points_per_level": 3
+  },
+  "derived": {
+    "hp_base": 30,
+    "hp_per_vitality": 4,
+    "hp_per_level": 2,
+    "stamina_base": 30,
+    "stamina_per_point": 5,
+    "stamina_min": 10,
+    "regen_base": 3,
+    "regen_divisor": 3,
+    "damage_base": 9,
+    "damage_per_strength_tenth": 7,
+    "crit_base_pm": 50,
+    "crit_per_technique_tenth_pm": 40,
+    "crit_max_pm": 300,
+    "crit_multiplier_pm": 1500,
+    "absorb_per_defense": 3,
+    "initiative_die": 10
+  },
+  "hit": {
+    "min_pm": 100,
+    "max_pm": 950,
+    "per_point_pm": 15
+  },
+  "damage": {
+    "variance_min_pm": 900,
+    "variance_max_pm": 1100,
+    "min_damage": 1,
+    "absorb_scale": 100
+  },
+  "actions": {
+    "advance": {
+      "stamina": 3
+    },
+    "retreat": {
+      "stamina": 3
+    },
+    "light": {
+      "stamina": 6,
+      "range_min": 1,
+      "range_max": 2,
+      "accuracy_pm": 850,
+      "far_penalty_pm": 300,
+      "damage_pm": 650,
+      "crit_bonus_pm": 0
+    },
+    "medium": {
+      "stamina": 12,
+      "range_min": 1,
+      "range_max": 1,
+      "accuracy_pm": 700,
+      "far_penalty_pm": 0,
+      "damage_pm": 1000,
+      "crit_bonus_pm": 0
+    },
+    "heavy": {
+      "stamina": 22,
+      "range_min": 1,
+      "range_max": 1,
+      "accuracy_pm": 480,
+      "far_penalty_pm": 0,
+      "damage_pm": 1500,
+      "crit_bonus_pm": 50
+    },
+    "defend": {
+      "damage_taken_pm": 750
+    },
+    "recover": {
+      "regen_multiplier": 3,
+      "damage_taken_pm": 1250
+    },
+    "taunt": {
+      "stamina": 4,
+      "next_crit_bonus_pm": 150,
+      "next_damage_pm": 1100,
+      "self_absorb_pm": 800
+    }
+  },
+  "fight_end": {
+    "exhaustion_turn": 40,
+    "exhaustion_pm_per_turn": 50,
+    "max_turns": 60
+  },
+  "progression": {
+    "max_level": 30,
+    "xp_curve": {
+      "a": 30,
+      "b": 20,
+      "c": 3
+    },
+    "xp_win_base": 20,
+    "xp_win_per_level": 8,
+    "xp_higher_level_pm": 1500,
+    "xp_loss_pm": 500,
+    "gold_win_base": 15,
+    "gold_win_per_level": 6,
+    "gold_loss_pm": 250,
+    "rematch_reward_pm": 500,
+    "sell_pm": 500,
+    "start_gold": 0,
+    "inventory_max": 64
+  },
+  "archetypes": {
+    "aggressive": {
+      "preferred_distance": 1,
+      "w_damage": 14,
+      "w_risk": 4,
+      "w_stamina": 3,
+      "w_distance": 30,
+      "w_opportunity": 40,
+      "heavy_min_stamina_pm": 700
+    },
+    "defensive": {
+      "preferred_distance": 2,
+      "w_damage": 9,
+      "w_risk": 12,
+      "w_stamina": 5,
+      "w_distance": 30,
+      "w_opportunity": 20,
+      "heavy_min_stamina_pm": 800
+    },
+    "opportunist": {
+      "preferred_distance": 1,
+      "w_damage": 11,
+      "w_risk": 8,
+      "w_stamina": 6,
+      "w_distance": 25,
+      "w_opportunity": 80,
+      "heavy_min_stamina_pm": 700
+    },
+    "balanced": {
+      "preferred_distance": 1,
+      "w_damage": 11,
+      "w_risk": 8,
+      "w_stamina": 6,
+      "w_distance": 30,
+      "w_opportunity": 40,
+      "heavy_min_stamina_pm": 750
+    }
+  },
+  "ai": {
+    "noise_max": 50,
+    "taunt_value": 60,
+    "recover_value_per_missing_pm": 2,
+    "potential_pm": 600
+  }
+}

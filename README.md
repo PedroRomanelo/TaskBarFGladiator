@@ -4,10 +4,12 @@ Jogo **original** de gladiador por turnos que roda dentro da área da **barra de
 100 % offline, escrito em **Rust**, com foco em segurança, baixo consumo de memória e CPU, e estabilidade
 para ficar aberto o dia inteiro.
 
-> **Status:** em desenvolvimento. Fase 0 (repositório, CI, licenças) concluída; jogo ainda não jogável.
+> **Status:** em desenvolvimento. Concluídos: Fase 0 (repositório, CI, licenças) e o núcleo do jogo
+> (crate `game`: combate, IA, progressão, save) com o simulador de balanceamento e o baseline congelado.
+> Ainda sem interface gráfica: o jogo não é jogável no Windows.
 >
-> O nome "TaskBarFGladiator" é provisório. O nome definitivo do jogo será escolhido na Fase 0
-> (ver [`docs/10-cronograma-e-decisoes.md`](docs/10-cronograma-e-decisoes.md)).
+> O nome "TaskBarFGladiator" é provisório. O nome definitivo do jogo ainda não foi escolhido
+> (pendência P1 em [`docs/10-cronograma-e-decisoes.md`](docs/10-cronograma-e-decisoes.md)).
 
 ## O que é
 
@@ -56,8 +58,9 @@ Toda a documentação de planejamento está em [`docs/`](docs/README.md):
 | [10 — Cronograma e decisões](docs/10-cronograma-e-decisoes.md) | Prazos, decisões tomadas e pendentes |
 | [11 — Design do jogo](docs/11-design-do-jogo.md) | GDD inicial: atributos, ações, fórmulas, IA |
 | [12 — Balanceamento de referência](docs/12-balanceamento-de-referencia.md) | Metas, congelamento das regras, processo de alteração |
+| [14 — Formato do conteúdo](docs/14-formato-do-conteudo.md) | Arquivos JSON de regras, itens e ligas |
 
 ## Licença
 
-Planejada: código sob `MIT OR Apache-2.0`; arte própria sob `CC-BY-4.0` ou `CC0-1.0`.
-Os arquivos de licença serão adicionados na Fase 0.
+Código sob `MIT OR Apache-2.0` ([`LICENSE-MIT`](LICENSE-MIT), [`LICENSE-APACHE`](LICENSE-APACHE)).
+Arte própria sob `CC-BY-4.0` ([`assets-src/LICENSE`](assets-src/LICENSE)).

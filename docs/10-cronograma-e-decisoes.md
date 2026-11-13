@@ -111,8 +111,8 @@ a plataforma deve ser testada manualmente assim que a primeira versão compilar.
 
 **D21 — Conteúdo e regras orientados a dados.**
 Itens, ligas, oponentes e constantes de regras ficam em arquivos JSON em `crates/game/content/`, embutidos
-no executável e validados na carga. Permite alterar o conteúdo sem mexer no motor. `BALANCE_VERSION` é
-derivado do hash desses arquivos. Formato em [`14-formato-do-conteudo.md`](14-formato-do-conteudo.md).
+no executável e validados na carga. Permite alterar o conteúdo sem mexer no motor. A versão do balanceamento é
+derivada do hash desses arquivos. Formato em [`14-formato-do-conteudo.md`](14-formato-do-conteudo.md).
 
 ## 3. Decisões pendentes
 

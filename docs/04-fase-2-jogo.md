@@ -230,7 +230,8 @@ Esta seção trata só da implementação do crate.
    porcentagem de lutas na exaustão, distribuição de ações por arquétipo; para carreiras: nível ao vencer o
    campeão, total de lutas, vitórias por item, maior sequência de derrotas, ouro sem uso.
 5. Subcomandos:
-   - `check --targets balance/targets.toml` — confere as metas (usado no CI em modo reduzido);
+   - `check` — confere as metas de `balance/targets.json` (usado no CI);
+   - `verify-baseline` — compara byte a byte com o baseline gravado (usado no CI);
    - `compare --baseline balance/` — gera `balance/compare.md` com a tabela antes × depois;
    - `write-baseline` — regenera `balance/baseline.csv` e `balance/baseline-careers.csv`.
 6. Execução paralela por cenário com `std::thread::scope` (sem dependências): cada cenário tem suas

@@ -8,7 +8,7 @@
 | Propriedade | Linux (CI) | invariantes do combate e do save | `proptest` |
 | Fuzzing | Linux (CI curto + agendado semanal) | parser de save | `cargo-fuzz` |
 | Golden image | Linux (CI) | cenas renderizadas | testes de `render` com hash |
-| Simulação: metas | Linux (CI, modo reduzido) | metas de `balance/targets.toml` | `sim check` |
+| Simulação: metas | Linux (CI) | metas de `balance/targets.json` | `sim check` |
 | Simulação: baseline | Linux (CI, completo) | igualdade exata com `balance/baseline*.csv` | `sim` + comparação byte a byte |
 | Replays | Linux (CI) | lutas gravadas reproduzem o mesmo estado final | testes de `game` |
 | Benchmark | Linux (CI com limite) | tempo de `step` e renderização | harness próprio ou `criterion` |
@@ -21,9 +21,9 @@
 ### 2.0 Balanceamento (job `balance-check`)
 Descrito em [`12-balanceamento-de-referencia.md`](12-balanceamento-de-referencia.md), seção 5.2. Resumo:
 1. `sim check` confere todas as metas.
-2. `sim` completo comparado byte a byte com o baseline; diferença sem incremento de `BALANCE_VERSION` → falha.
+2. `sim verify-baseline`: simulação completa comparada byte a byte com o baseline; qualquer diferença → falha.
 3. Replays em `crates/game/tests/replays/` reproduzem exatamente o estado final gravado.
-4. Se `BALANCE_VERSION` mudou: baseline e replays regenerados no mesmo PR e entrada no `CHANGELOG.md`.
+4. Mudança deliberada de regras: baseline e replays regenerados no mesmo PR e entrada no `CHANGELOG.md`.
 
 ### 2.1 Invariantes (`proptest`)
 1. Toda luta termina em ≤ 60 turnos, para quaisquer lutadores válidos e qualquer semente.
@@ -148,5 +148,5 @@ Fase 1 (24 h, cena de teste) e antes de cada versão maior (72 h, jogo real).
 - [ ] Novo caso de borda descoberto adicionado em [`06-casos-de-borda.md`](06-casos-de-borda.md).
 - [ ] Sem novo `unsafe` fora de `platform`; `unsafe` novo com `// SAFETY:`.
 - [ ] Sem nova dependência não justificada.
-- [ ] Nenhum número de regra fora de `balance.rs`; se o resultado do `sim` mudou, `BALANCE_VERSION`
-      incrementado e `balance/compare.md` na descrição do PR.
+- [ ] Nenhum número de regra fora de `crates/game/content/`; se o resultado do `sim` mudou, baseline e
+      replays regenerados e `balance/compare.md` na descrição do PR.

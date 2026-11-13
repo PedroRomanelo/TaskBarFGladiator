@@ -1,0 +1,18 @@
+{
+  "items": [
+    { "id": 1, "kind": "weapon", "name": { "pt": "Faca de treino", "en": "Training knife" }, "price": 0, "damage": 1, "accuracy_pm": 50, "weight": 0 },
+    { "id": 2, "kind": "weapon", "name": { "pt": "Espada curta de bronze", "en": "Bronze shortsword" }, "price": 60, "damage": 4, "accuracy_pm": 20, "weight": 1 },
+    { "id": 3, "kind": "weapon", "name": { "pt": "Lança de freixo", "en": "Ash spear" }, "price": 140, "damage": 6, "accuracy_pm": 0, "weight": 2 },
+    { "id": 4, "kind": "weapon", "name": { "pt": "Machado de ferro", "en": "Iron axe" }, "price": 300, "damage": 10, "accuracy_pm": -50, "weight": 4 },
+
+    { "id": 101, "kind": "armor", "name": { "pt": "Túnica acolchoada", "en": "Padded tunic" }, "price": 40, "armor": 4, "agility_penalty": 0 },
+    { "id": 102, "kind": "armor", "name": { "pt": "Couro fervido", "en": "Boiled leather" }, "price": 110, "armor": 10, "agility_penalty": 1 },
+    { "id": 103, "kind": "armor", "name": { "pt": "Malha de anéis", "en": "Ring mail" }, "price": 260, "armor": 18, "agility_penalty": 3 },
+    { "id": 104, "kind": "armor", "name": { "pt": "Placas de bronze", "en": "Bronze plates" }, "price": 520, "armor": 28, "agility_penalty": 6 },
+
+    { "id": 201, "kind": "shield", "name": { "pt": "Broquel de madeira", "en": "Wooden buckler" }, "price": 30, "shield": 3, "stamina_penalty": 0 },
+    { "id": 202, "kind": "shield", "name": { "pt": "Escudo redondo", "en": "Round shield" }, "price": 120, "shield": 8, "stamina_penalty": 4 },
+    { "id": 203, "kind": "shield", "name": { "pt": "Escudo oval reforçado", "en": "Reinforced oval shield" }, "price": 280, "shield": 14, "stamina_penalty": 8 },
+    { "id": 204, "kind": "shield", "name": { "pt": "Escudo de torre", "en": "Tower shield" }, "price": 480, "shield": 22, "stamina_penalty": 15 }
+  ]
+}

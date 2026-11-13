@@ -1,0 +1,202 @@
+[
+  {
+    "name": "replay_00",
+    "seed": 1000,
+    "strategy": "balanced",
+    "focus": null,
+    "opponent": 0,
+    "winner": "Player",
+    "turns": 9,
+    "state_hash": "5de2b40a8f34fe87"
+  },
+  {
+    "name": "replay_01",
+    "seed": 1001,
+    "strategy": "aggressive",
+    "focus": "strength",
+    "opponent": 1,
+    "winner": "Player",
+    "turns": 5,
+    "state_hash": "0258bbf700247acb"
+  },
+  {
+    "name": "replay_02",
+    "seed": 1002,
+    "strategy": "defensive",
+    "focus": "agility",
+    "opponent": 2,
+    "winner": "Opponent",
+    "turns": 13,
+    "state_hash": "e7ceb2ecb21b27be"
+  },
+  {
+    "name": "replay_03",
+    "seed": 1003,
+    "strategy": "opportunist",
+    "focus": "vitality",
+    "opponent": 3,
+    "winner": "Opponent",
+    "turns": 17,
+    "state_hash": "747cf2d11e488b6f"
+  },
+  {
+    "name": "replay_04",
+    "seed": 1004,
+    "strategy": "balanced",
+    "focus": "defense",
+    "opponent": 4,
+    "winner": "Opponent",
+    "turns": 29,
+    "state_hash": "49bcd779ed90a91b"
+  },
+  {
+    "name": "replay_05",
+    "seed": 1005,
+    "strategy": "aggressive",
+    "focus": null,
+    "opponent": 5,
+    "winner": "Opponent",
+    "turns": 8,
+    "state_hash": "c23234f19e8bceae"
+  },
+  {
+    "name": "replay_06",
+    "seed": 1006,
+    "strategy": "defensive",
+    "focus": "strength",
+    "opponent": 6,
+    "winner": "Player",
+    "turns": 35,
+    "state_hash": "4ced3c7bb556748d"
+  },
+  {
+    "name": "replay_07",
+    "seed": 1007,
+    "strategy": "opportunist",
+    "focus": "agility",
+    "opponent": 7,
+    "winner": "Opponent",
+    "turns": 14,
+    "state_hash": "cf0094591f215666"
+  },
+  {
+    "name": "replay_08",
+    "seed": 1008,
+    "strategy": "balanced",
+    "focus": "vitality",
+    "opponent": 8,
+    "winner": "Opponent",
+    "turns": 29,
+    "state_hash": "1612a827186f6eb2"
+  },
+  {
+    "name": "replay_09",
+    "seed": 1009,
+    "strategy": "aggressive",
+    "focus": "defense",
+    "opponent": 0,
+    "winner": "Player",
+    "turns": 18,
+    "state_hash": "52ac878c3204f9fb"
+  },
+  {
+    "name": "replay_10",
+    "seed": 1010,
+    "strategy": "defensive",
+    "focus": null,
+    "opponent": 1,
+    "winner": "Opponent",
+    "turns": 20,
+    "state_hash": "d145eaeb0fc9afcd"
+  },
+  {
+    "name": "replay_11",
+    "seed": 1011,
+    "strategy": "opportunist",
+    "focus": "strength",
+    "opponent": 2,
+    "winner": "Opponent",
+    "turns": 8,
+    "state_hash": "ee1709104439222b"
+  },
+  {
+    "name": "replay_12",
+    "seed": 1012,
+    "strategy": "balanced",
+    "focus": "agility",
+    "opponent": 3,
+    "winner": "Opponent",
+    "turns": 11,
+    "state_hash": "96e48fe65f935a01"
+  },
+  {
+    "name": "replay_13",
+    "seed": 1013,
+    "strategy": "aggressive",
+    "focus": "vitality",
+    "opponent": 4,
+    "winner": "Opponent",
+    "turns": 31,
+    "state_hash": "d97cac34d1f6dd01"
+  },
+  {
+    "name": "replay_14",
+    "seed": 1014,
+    "strategy": "defensive",
+    "focus": "defense",
+    "opponent": 5,
+    "winner": "Opponent",
+    "turns": 18,
+    "state_hash": "0a15b1191ec2237f"
+  },
+  {
+    "name": "replay_15",
+    "seed": 1015,
+    "strategy": "opportunist",
+    "focus": null,
+    "opponent": 6,
+    "winner": "Player",
+    "turns": 19,
+    "state_hash": "a573d877c69b766a"
+  },
+  {
+    "name": "replay_16",
+    "seed": 1016,
+    "strategy": "balanced",
+    "focus": "strength",
+    "opponent": 7,
+    "winner": "Opponent",
+    "turns": 4,
+    "state_hash": "3ead99d3261b9996"
+  },
+  {
+    "name": "replay_17",
+    "seed": 1017,
+    "strategy": "aggressive",
+    "focus": "agility",
+    "opponent": 8,
+    "winner": "Player",
+    "turns": 33,
+    "state_hash": "08415242149026cc"
+  },
+  {
+    "name": "replay_18",
+    "seed": 1018,
+    "strategy": "defensive",
+    "focus": "vitality",
+    "opponent": 0,
+    "winner": "Opponent",
+    "turns": 19,
+    "state_hash": "a15b9569730553c7"
+  },
+  {
+    "name": "replay_19",
+    "seed": 1019,
+    "strategy": "opportunist",
+    "focus": "defense",
+    "opponent": 1,
+    "winner": "Player",
+    "turns": 14,
+    "state_hash": "8ba7ddeca83d101a"
+  }
+]
