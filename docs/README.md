@@ -13,6 +13,8 @@ Esta pasta contém o planejamento completo do jogo, do início ao lançamento da
      itens e ligas.
    - [`15-plano-fluxo-de-jogo.md`](15-plano-fluxo-de-jogo.md) — plano do fluxo de jogo: título, criação
      do personagem, sete atributos com Carisma, intervalo entre lutas (nível, pontos, loja) e economia.
+   - [`16-catalogo-de-itens.md`](16-catalogo-de-itens.md) — os 88 itens (8 tipos de armadura e 3 de
+     arma, 8 qualidades cada) com nível, atributos e preço, e como pedir a arte (prompt para o Gemini).
 4. Fases, em ordem cronológica:
    - [`02-fase-0-preparacao.md`](02-fase-0-preparacao.md)
    - [`03-fase-1-plataforma.md`](03-fase-1-plataforma.md)

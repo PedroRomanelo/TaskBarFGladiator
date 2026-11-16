@@ -35,6 +35,9 @@ etapa.
 
 ## Peças geradas por IA (Gemini e parecidos)
 
+A lista de itens, o prompt padrão e a conferência depois de gerar estão em
+`docs/16-catalogo-de-itens.md` (seções 5 a 7); a paleta para anexar é `docs/arte/paleta.png`.
+
 Funciona como ponto de partida, mas a imagem gerada não é pixel art de verdade e precisa de limpeza
 antes de entrar aqui:
 

@@ -183,6 +183,7 @@ conjunto instalado. O pacote de teste (cavaleiro) fica fora do repositório por 
 | P7 | Progresso offline e seus limites | Pós-1.0 | — |
 | P8 | Revisar e aprovar as metas de balanceamento (doc 12, seção 3), principalmente P6 (duração da liga 1) | Antes da Fase 2 | Autor |
 | P9 | Decisões PD1 a PD6 do plano de fluxo de jogo ([doc 15](15-plano-fluxo-de-jogo.md), seção 8): lista de atributos, requisitos de itens, prêmio de campeão, redistribuição de pontos, slots de save e abertura do painel após a luta | Antes da fase A do doc 15 | Autor |
+| P10 | Decisões I1 a I5 do catálogo de itens ([doc 16](16-catalogo-de-itens.md), seção 9): Q1 no nível 1, níveis das armas, coxotes × caneleiras, arte das peças vestidas e armas que saem | Antes de implementar o catálogo | Autor |
 
 ## 4. Como registrar uma nova decisão
 

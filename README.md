@@ -110,6 +110,7 @@ Toda a documentação de planejamento está em [`docs/`](docs/README.md):
 | [12 — Balanceamento de referência](docs/12-balanceamento-de-referencia.md) | Metas, congelamento das regras, processo de alteração |
 | [14 — Formato do conteúdo](docs/14-formato-do-conteudo.md) | Arquivos JSON de regras, itens e ligas |
 | [15 — Plano: fluxo de jogo](docs/15-plano-fluxo-de-jogo.md) | Título, criação do personagem, atributos, intervalo entre lutas e economia (a executar) |
+| [16 — Catálogo de itens](docs/16-catalogo-de-itens.md) | Os 88 itens com nível, atributos e preço; como pedir a arte de cada um |
 
 ## Licença
 
