@@ -16,7 +16,9 @@ pub mod state;
 pub use combat::{Action, FightEvent, FightState, OpponentRef, Outcome, Side};
 pub use content::{Archetype, Content, ContentError, ItemId, ItemKind};
 pub use fighter::{Attr, Attributes, Equipment, Fighter};
-pub use state::{GameEvent, GameState, Input, Mode, Rejection, SaveHint, Screen, StepResult, step};
+pub use state::{
+    Appearance, GameEvent, GameState, Input, Mode, Rejection, SaveHint, Screen, StepResult, step,
+};
 
 /// Versão do crate, usada em logs.
 pub const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");

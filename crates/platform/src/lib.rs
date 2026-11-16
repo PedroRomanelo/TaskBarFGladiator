@@ -16,7 +16,7 @@ mod win;
 pub use win::*;
 
 pub use event::{Event, MouseButton, WindowId};
-pub use layout::{Edge, Placement, Rect, TaskbarInfo, place_strip};
+pub use layout::{Edge, Placement, Rect, TaskbarInfo, place_stage};
 
 /// Versão do crate.
 pub const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");

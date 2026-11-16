@@ -31,6 +31,27 @@ A seção **Balanceamento** registra toda mudança de regras ou conteúdo (ver
 - Workflow de release (tag `v*.*.*`): testes, metas, baseline, build, ZIP portátil, `SHA256SUMS.txt`,
   atestação de procedência e rascunho de release. `docs/LEIA-ME-USUARIO.txt` incluído no ZIP.
 
+### Alterado
+- O jogo saiu de dentro da barra de tarefas: agora é um palco sem fundo apoiado no topo da barra, com
+  lutadores de cerca de duas vezes a altura dela. A escala acompanha a altura da barra e pode ser
+  ajustada em CONFIG (pequeno, normal, grande). Com ocultação automática, o palco desce junto com a
+  barra em vez de sumir. Posição padrão: canto direito.
+- Arte refeita: lutador em camadas de 32 × 32 (corpo por pose + aparência + equipamento) no lugar dos
+  4 quadros fixos de 16 × 20. Novos ícones dos golpes.
+- Fluxo mais claro: legenda da etapa no topo (preparar, sua vez, rodada em andamento, resultado),
+  rodada narrada passo a passo com dano e fôlego flutuando sobre os lutadores, botões de ação em
+  volta do jogador com explicação ao passar o mouse, e o botão principal (LUTAR / CONTINUAR) sempre
+  no mesmo canto da faixa de status.
+
+### Adicionado
+- Aparência do gladiador (pele, cabelo, cor do cabelo, olhos, barba) na nova aba VISUAL do painel,
+  gravada no save. Oponentes têm aparência própria, derivada do nome.
+- Equipamento visível e fixo: 6 armas (faca, espada curta, lança, machado, arco, bastão; as duas
+  últimas ainda sem item no jogo), 4 escudos e 4 armaduras com elmo, peitoral e grevas.
+- Folhas de sprites no `cargo run -p render --example preview`.
+
 ### Balanceamento
+- Sem mudança de regras. A aparência só é gravada no save quando difere da padrão, então o estado
+  serializado dos replays continua idêntico.
 - Baseline inicial criado (`balance/`). Todas as 22 metas de `docs/12` atendidas. Metas P3, P4 e P6
   revisadas por serem incompatíveis com as demais (justificativa em `docs/12`, seção 3.3).

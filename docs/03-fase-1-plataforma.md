@@ -116,6 +116,14 @@ reposicionar, sair).
    - qualquer outra borda, barra não encontrada, ou retângulo inválido → modo `Flutuante`.
 
 ### 1.6 Cálculo da posição
+
+> **Atualizado (D26):** a janela não fica mais dentro da barra. O palco fica apoiado no topo dela:
+> base = topo da parte visível da barra; escala inteira da arte = altura da barra ÷ 14, arredondada
+> (48 px → ×3), com ajuste −1/0/+1 do usuário e redução automática se não couber no monitor; posição
+> horizontal padrão no canto direito (margem de 8 px lógicos), ou o deslocamento salvo, medido a partir
+> da esquerda da barra. Com ocultação automática o palco acompanha a barra. Ver `layout.rs`
+> (`place_stage`). O texto abaixo descreve o plano original.
+
 - Altura da faixa = altura da barra (`rc.bottom - rc.top`).
 - Largura da faixa = largura lógica configurada (padrão 360 px lógicos) × DPI / 96, limitada a 40 % da
   largura da barra.

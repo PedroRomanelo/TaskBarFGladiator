@@ -188,6 +188,13 @@ pode congelar.
 ## 2.4 Interface e entrada
 
 ### Faixa (sempre visível na barra)
+
+> **Atualizado (D26, D27):** a faixa virou um palco acima da barra (`render::scene`): legenda da etapa
+> no topo, arena com os lutadores e os botões de ação em volta do jogador, chão, e uma faixa de status
+> encostada na barra (vida e fôlego na luta; nível, ouro e o botão principal fora dela). Os tooltips
+> previstos em "Outros" são a própria legenda: passar o mouse sobre uma ação mostra custo e chance de
+> acerto, ou o motivo de estar indisponível. O painel ganhou a aba Visual.
+
 - Conteúdo: arena com os dois lutadores, HP e fôlego de cada um, número do turno, indicador de modo.
 - Modo manual: botões de ação aparecem na faixa (ícones de 1 caractere de largura × altura da faixa).
   Ações inválidas ficam desabilitadas.

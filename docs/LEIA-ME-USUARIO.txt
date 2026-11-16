@@ -5,9 +5,12 @@ Requisitos: Windows 10 22H2 ou Windows 11. Não precisa de instalação nem de i
 
 COMO USAR
 - Extraia o ZIP em qualquer pasta e abra taskbar-gladiator.exe.
-- A faixa aparece sobre a barra de tarefas. Segure e arraste para mudar a posição.
-- Clique esquerdo nos botões da faixa. Clique direito abre o painel (ficha, loja, liga,
-  configurações). Esc ou clicar fora fecha o painel.
+- O palco aparece logo acima da barra de tarefas, no canto direito. Segure e arraste para mudar a
+  posição. O que está atrás dele continua clicável.
+- A legenda no topo diz o que fazer em cada etapa. Clique esquerdo nos botões; passe o mouse sobre um
+  botão de ação para ver o custo e a chance de acerto. Clique direito abre o painel (ficha, loja, liga,
+  visual, configurações). Esc ou clicar fora fecha o painel.
+- Aparência do gladiador: painel, aba VISUAL. Tamanho do palco: aba CONFIG.
 - Ícone na bandeja (ao lado do relógio): mostrar/ocultar, pausar, painel, reposicionar, sair.
 - Modo automático: no painel, aba FICHA, botão TROCAR na linha MODO.
 

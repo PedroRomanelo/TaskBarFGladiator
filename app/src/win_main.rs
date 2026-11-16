@@ -8,10 +8,10 @@ use crate::controller::{App, Effects};
 use crate::i18n::{Key, Lang, t};
 use crate::{identity, logging, storage};
 use game::{Content, GameState, Mode};
-use platform::layout::{Placement, Rect, offset_from_x, offset_key, place_strip};
+use platform::layout::{Placement, Rect, offset_from_x, offset_key, place_stage};
 use platform::{Event, KnownFolder, MouseButton, Platform, TrayMenuItem, WindowId};
-use render::scene::{PANEL_HEIGHT, PANEL_WIDTH, STRIP_WIDTH};
-use render::{Hit, Surface, Theme, draw_panel, draw_strip, hit_test};
+use render::scene::{PANEL_HEIGHT, PANEL_WIDTH, STAGE_HEIGHT, STAGE_WIDTH};
+use render::{Hit, Surface, Theme, draw_panel, draw_stage, hit_test};
 use std::path::PathBuf;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -232,7 +232,7 @@ impl Shell {
                 ..
             } => {
                 let (cx, _) = self.platform.cursor_pos();
-                if let Placement::OnTaskbar(r) | Placement::Floating(r) = self.placement {
+                if let Placement::AboveTaskbar(r) | Placement::Floating(r) = self.placement {
                     self.drag = Some(Drag {
                         start_cursor_x: cx,
                         start_left: r.left,
@@ -243,7 +243,8 @@ impl Shell {
             }
             Event::MouseMove {
                 window: WindowId::Strip,
-                ..
+                x,
+                y,
             } => {
                 let (cx, _) = self.platform.cursor_pos();
                 if let Some(d) = &mut self.drag {
@@ -255,8 +256,19 @@ impl Shell {
                         self.drag_left = Some(d.start_left + dx);
                         self.relayout_with_drag();
                     }
+                } else {
+                    // Realce do botão sob o mouse e, na luta, a explicação da ação na legenda.
+                    let fx = self.app.set_hover(hit_test(&self.strip_hits, x, y));
+                    self.apply(fx);
                 }
             }
+            Event::MouseLeave {
+                window: WindowId::Strip,
+            } => {
+                let fx = self.app.set_hover(None);
+                self.apply(fx);
+            }
+            Event::MouseLeave { .. } => {}
             Event::MouseUp {
                 window: WindowId::Strip,
                 button: MouseButton::Left,
@@ -373,17 +385,18 @@ impl Shell {
             (Some(tb), None) => self.app.config().offsets.get(&offset_key(tb)).copied(),
             (None, _) => None,
         };
-        self.placement = place_strip(
+        self.placement = place_stage(
             self.taskbar.as_ref(),
-            STRIP_WIDTH,
+            (STAGE_WIDTH, STAGE_HEIGHT),
             offset,
             self.platform.primary_work_area(),
+            i32::from(self.app.config().size),
         );
         self.redraw_strip();
     }
 
     fn finish_drag(&mut self) {
-        if let (Some(tb), Placement::OnTaskbar(r)) = (&self.taskbar, self.placement) {
+        if let (Some(tb), Placement::AboveTaskbar(r)) = (&self.taskbar, self.placement) {
             let key = offset_key(tb);
             let off = offset_from_x(tb, r.left);
             self.app.config_mut().offsets.insert(key, off);
@@ -394,7 +407,7 @@ impl Shell {
 
     fn strip_rect(&self) -> Option<Rect> {
         match self.placement {
-            Placement::OnTaskbar(r) | Placement::Floating(r) => Some(r),
+            Placement::AboveTaskbar(r) | Placement::Floating(r) => Some(r),
             Placement::Hidden => None,
         }
     }
@@ -413,10 +426,11 @@ impl Shell {
             self.strip.resize(w, h);
         }
         let theme = self.render_theme();
-        draw_strip(
+        draw_stage(
             &mut self.strip,
-            self.app.strip_view(),
+            self.app.stage(),
             theme,
+            self.app.hover(),
             &mut self.strip_hits,
         );
         self.platform.present_strip(r, self.strip.pixels());
@@ -495,6 +509,8 @@ impl Shell {
                 let key = offset_key(tb);
                 self.app.config_mut().offsets.remove(&key);
             }
+            self.relayout();
+        } else if fx.relayout {
             self.relayout();
         }
         if fx.close_panel {

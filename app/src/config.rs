@@ -57,7 +57,7 @@ pub struct Config {
     pub version: u32,
     /// Idioma escolhido (`None` = do sistema).
     pub language: Option<Lang>,
-    /// Deslocamento horizontal da faixa por monitor (px lógicos), chave `dispositivo@LxA`.
+    /// Deslocamento horizontal do palco por monitor (px lógicos), chave `dispositivo@LxA`.
     pub offsets: BTreeMap<String, i32>,
     /// Reduzir animações.
     pub reduce_motion: bool,
@@ -67,8 +67,10 @@ pub struct Config {
     pub pace: Pace,
     /// Distribuir pontos automaticamente no modo automático.
     pub auto_allocate: bool,
-    /// Faixa oculta pelo usuário.
+    /// Palco oculto pelo usuário.
     pub hidden: bool,
+    /// Ajuste de tamanho do palco: −1 (pequeno), 0 (normal) ou +1 (grande) na escala da arte.
+    pub size: i8,
 }
 
 impl Default for Config {
@@ -82,6 +84,7 @@ impl Default for Config {
             pace: Pace::Normal,
             auto_allocate: true,
             hidden: false,
+            size: 0,
         }
     }
 }
@@ -91,6 +94,7 @@ impl Config {
     pub fn from_bytes(bytes: &[u8]) -> Option<Config> {
         let mut c: Config = serde_json::from_slice(bytes).ok()?;
         c.version = 1;
+        c.size = c.size.clamp(-1, 1);
         // Limites: chaves curtas, no máximo 32 monitores, deslocamentos razoáveis.
         c.offsets
             .retain(|k, v| k.len() <= 128 && (0..=20_000).contains(v));
@@ -128,6 +132,8 @@ mod tests {
     fn invalid_values_are_dropped() {
         let c = Config::from_bytes(br#"{"offsets": {"a": -5, "b": 100}}"#);
         assert_eq!(c.map(|c| c.offsets.len()), Some(1));
+        let c = Config::from_bytes(br#"{"size": 9}"#);
+        assert_eq!(c.map(|c| c.size), Some(1));
         assert!(Config::from_bytes(b"lixo").is_none());
     }
 }

@@ -1,4 +1,4 @@
-//! Cálculo de posição da faixa (portável, testável em qualquer sistema).
+//! Cálculo de posição do palco, acima da barra de tarefas (portável, testável em qualquer sistema).
 //!
 //! Ver `docs/03-fase-1-plataforma.md`, seções 1.5, 1.6 e 1.10.
 
@@ -72,24 +72,25 @@ pub struct TaskbarInfo {
     pub tray: Option<Rect>,
 }
 
-/// Onde a faixa deve ficar.
+/// Onde o palco deve ficar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Placement {
-    /// Sobre a barra de tarefas.
-    OnTaskbar(Rect),
+    /// Apoiado em cima da barra de tarefas (a base do palco encosta no topo da barra).
+    AboveTaskbar(Rect),
     /// Janela flutuante (barra ausente, vertical ou superior).
     Floating(Rect),
-    /// Oculta (barra recolhida pela ocultação automática).
+    /// Oculto (não há espaço para o palco na tela).
     Hidden,
 }
 
-/// Altura lógica mínima visível da barra para a faixa aparecer.
-pub const MIN_VISIBLE_HEIGHT: i32 = 24;
-/// Deslocamento horizontal padrão (px lógicos) a partir da esquerda da barra: deixa livre o botão de
-/// Widgets/clima do Windows 11.
-pub const DEFAULT_LEFT_OFFSET: i32 = 160;
-/// Fração máxima da largura da barra que a faixa pode ocupar (‰).
-pub const MAX_WIDTH_PM: i32 = 400;
+/// Altura da barra de tarefas (em pixels físicos) por unidade de escala da arte. O lutador tem 32
+/// pixels lógicos de altura: com este divisor ele fica com cerca de 2,3 vezes a altura da barra.
+pub const BAR_PER_SCALE: i32 = 14;
+/// Margem padrão (px lógicos de tela) entre o palco e a borda direita da barra, quando não há
+/// posição salva.
+pub const DEFAULT_RIGHT_MARGIN: i32 = 8;
+/// Altura lógica de barra de tarefas assumida no modo flutuante.
+pub const FLOATING_BAR_HEIGHT: i32 = 48;
 
 /// Converte pixels lógicos em físicos para um DPI.
 pub fn to_physical(logical: i32, dpi: u32) -> i32 {
@@ -101,56 +102,64 @@ pub fn to_logical(physical: i32, dpi: u32) -> i32 {
     (i64::from(physical) * 96 / i64::from(dpi.max(48))) as i32
 }
 
-/// Escala inteira da arte para uma altura física (altura base 24).
-pub fn art_scale(height: i32) -> i32 {
-    (height / 24).max(1)
+/// Escala inteira da arte para uma altura física de barra de tarefas, arredondando para a mais
+/// próxima. `adjust` é o ajuste de tamanho escolhido pelo usuário (−1, 0 ou +1).
+pub fn stage_scale(taskbar_height: i32, adjust: i32) -> i32 {
+    ((taskbar_height * 2 + BAR_PER_SCALE) / (BAR_PER_SCALE * 2) + adjust).max(1)
 }
 
-/// Calcula a posição da faixa.
+/// Calcula a posição do palco.
 ///
-/// * `strip_logical_width`: largura da faixa em pixels lógicos da arte (multiplicada pela escala
+/// * `stage`: largura e altura do palco em pixels lógicos da arte (multiplicadas pela escala
 ///   inteira da arte, não pelo DPI).
 /// * `offset`: deslocamento horizontal salvo, em pixels lógicos de tela (DPI), a partir da esquerda
-///   da barra; `None` usa o padrão.
+///   da barra; `None` usa o padrão (canto direito, acima da área de notificação).
 /// * `floating_area`: área de trabalho do monitor principal e seu DPI, para o modo flutuante.
-pub fn place_strip(
+/// * `adjust`: ajuste de tamanho escolhido pelo usuário (−1, 0 ou +1 na escala).
+pub fn place_stage(
     taskbar: Option<&TaskbarInfo>,
-    strip_logical_width: i32,
+    stage: (i32, i32),
     offset: Option<i32>,
     floating_area: (Rect, u32),
+    adjust: i32,
 ) -> Placement {
     let Some(tb) = taskbar.filter(|t| t.edge == Edge::Bottom && t.rect.is_valid()) else {
-        return floating(strip_logical_width, floating_area);
+        return floating(stage, floating_area, adjust);
     };
-    // Parte visível da barra dentro do monitor (na ocultação automática, a barra fica quase toda
-    // abaixo da borda do monitor).
-    let visible_top = tb.rect.top.max(tb.monitor.top);
-    let visible_bottom = tb.rect.bottom.min(tb.monitor.bottom);
-    let visible_h = visible_bottom - visible_top;
-    if visible_h < to_physical(MIN_VISIBLE_HEIGHT, tb.dpi) {
+    // Base do palco: o topo da parte visível da barra. Com a ocultação automática a barra fica
+    // quase toda abaixo da borda do monitor; o palco então desce junto e fica na base da tela.
+    let bottom = tb.rect.top.clamp(tb.monitor.top, tb.monitor.bottom);
+    let room_w = tb.rect.width().min(tb.monitor.width());
+    let room_h = bottom - tb.monitor.top;
+    // A escala vem da altura total da barra (não só da parte visível) e diminui se não couber.
+    let mut scale = stage_scale(tb.rect.height(), adjust);
+    while scale > 1 && (stage.0 * scale > room_w || stage.1 * scale > room_h) {
+        scale -= 1;
+    }
+    let (width, height) = (stage.0 * scale, stage.1 * scale);
+    if width > room_w || height > room_h {
         return Placement::Hidden;
     }
-    let height = visible_h;
-    let scale = art_scale(height);
-    let max_w = tb.rect.width() * MAX_WIDTH_PM / 1000;
-    let width = (strip_logical_width * scale).min(max_w).max(1);
-    let left_limit = tb.rect.left;
-    let right_limit = tb.tray.map_or(tb.rect.right, |t| t.left.min(tb.rect.right));
-    let off = offset.unwrap_or(DEFAULT_LEFT_OFFSET);
-    let x = (tb.rect.left + to_physical(off, tb.dpi))
-        .clamp(left_limit, (right_limit - width).max(left_limit));
-    Placement::OnTaskbar(Rect {
+    let max_x = (tb.rect.right - width).max(tb.rect.left);
+    let x = match offset {
+        Some(off) => tb.rect.left + to_physical(off, tb.dpi),
+        None => max_x - to_physical(DEFAULT_RIGHT_MARGIN, tb.dpi),
+    }
+    .clamp(tb.rect.left, max_x);
+    Placement::AboveTaskbar(Rect {
         left: x,
-        top: visible_top,
+        top: bottom - height,
         right: x + width,
-        bottom: visible_top + height,
+        bottom,
     })
 }
 
-fn floating(strip_logical_width: i32, (work, dpi): (Rect, u32)) -> Placement {
-    let height = to_physical(40, dpi).max(24);
-    let scale = art_scale(height);
-    let width = strip_logical_width * scale;
+fn floating(stage: (i32, i32), (work, dpi): (Rect, u32), adjust: i32) -> Placement {
+    let mut scale = stage_scale(to_physical(FLOATING_BAR_HEIGHT, dpi), adjust);
+    while scale > 1 && (stage.0 * scale > work.width() || stage.1 * scale > work.height()) {
+        scale -= 1;
+    }
+    let (width, height) = (stage.0 * scale, stage.1 * scale);
     let margin = to_physical(8, dpi);
     let right = work.right - margin;
     let bottom = work.bottom - margin;
@@ -162,7 +171,7 @@ fn floating(strip_logical_width: i32, (work, dpi): (Rect, u32)) -> Placement {
     })
 }
 
-/// Deslocamento lógico correspondente a uma posição física `x` da faixa (para salvar após arrastar).
+/// Deslocamento lógico correspondente a uma posição física `x` do palco (para salvar após arrastar).
 pub fn offset_from_x(tb: &TaskbarInfo, x: i32) -> i32 {
     to_logical(x - tb.rect.left, tb.dpi).max(0)
 }
@@ -185,6 +194,9 @@ pub fn covers_monitor(window: &Rect, monitor: &Rect) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Palco de teste: 132 × 58 pixels lógicos.
+    const STAGE: (i32, i32) = (132, 58);
 
     fn tb(top: i32, h: i32, dpi: u32) -> TaskbarInfo {
         TaskbarInfo {
@@ -225,32 +237,53 @@ mod tests {
         )
     }
 
-    #[test]
-    fn places_on_bottom_taskbar_with_integer_scale() {
-        let t = tb(1032, 48, 96);
-        let Placement::OnTaskbar(r) = place_strip(Some(&t), 252, None, area()) else {
-            panic!("esperava barra");
-        };
-        assert_eq!(r.height(), 48);
-        assert_eq!(r.width(), 252 * 2);
-        assert_eq!(r.left, 160);
-        assert_eq!(r.top, 1032);
+    fn above(p: Placement) -> Rect {
+        match p {
+            Placement::AboveTaskbar(r) => r,
+            other => panic!("esperava palco acima da barra, veio {other:?}"),
+        }
     }
 
     #[test]
-    fn never_overlaps_tray_area() {
-        let t = tb(1032, 48, 96);
-        let Placement::OnTaskbar(r) = place_strip(Some(&t), 252, Some(5000), area()) else {
-            panic!("esperava barra");
-        };
-        assert!(r.right <= 1700);
+    fn scale_follows_taskbar_height() {
+        assert_eq!(stage_scale(40, 0), 3);
+        assert_eq!(stage_scale(48, 0), 3);
+        assert_eq!(stage_scale(60, 0), 4);
+        assert_eq!(stage_scale(72, 0), 5);
+        assert_eq!(stage_scale(48, 1), 4);
+        assert_eq!(stage_scale(48, -1), 2);
+        assert_eq!(stage_scale(10, -1), 1);
     }
 
     #[test]
-    fn hidden_when_autohide_collapsed() {
+    fn sits_on_top_of_the_bottom_taskbar() {
+        let t = tb(1032, 48, 96);
+        let r = above(place_stage(Some(&t), STAGE, None, area(), 0));
+        // A base encosta no topo da barra; nada do palco fica sobre ela.
+        assert_eq!(r.bottom, 1032);
+        assert_eq!(r.height(), 58 * 3);
+        assert_eq!(r.width(), 132 * 3);
+        // Sem posição salva: canto direito, com a margem padrão.
+        assert_eq!(r.right, 1920 - DEFAULT_RIGHT_MARGIN);
+    }
+
+    #[test]
+    fn saved_offset_is_measured_from_the_left_and_clamped() {
+        let t = tb(1032, 48, 96);
+        let r = above(place_stage(Some(&t), STAGE, Some(100), area(), 0));
+        assert_eq!(r.left, 100);
+        let r = above(place_stage(Some(&t), STAGE, Some(5000), area(), 0));
+        assert_eq!(r.right, 1920);
+    }
+
+    #[test]
+    fn follows_the_taskbar_when_autohide_collapses_it() {
         let mut t = tb(1078, 48, 96);
         t.autohide = true;
-        assert_eq!(place_strip(Some(&t), 252, None, area()), Placement::Hidden);
+        let r = above(place_stage(Some(&t), STAGE, None, area(), 0));
+        assert_eq!(r.bottom, 1078);
+        // A escala continua a da barra inteira, não a da fresta visível.
+        assert_eq!(r.height(), 58 * 3);
     }
 
     #[test]
@@ -258,13 +291,14 @@ mod tests {
         let mut t = tb(1032, 48, 96);
         t.edge = Edge::Left;
         assert!(matches!(
-            place_strip(Some(&t), 252, None, area()),
+            place_stage(Some(&t), STAGE, None, area(), 0),
             Placement::Floating(_)
         ));
-        assert!(matches!(
-            place_strip(None, 252, None, area()),
-            Placement::Floating(_)
-        ));
+        let Placement::Floating(r) = place_stage(None, STAGE, None, area(), 0) else {
+            panic!("esperava flutuante");
+        };
+        assert_eq!((r.width(), r.height()), (132 * 3, 58 * 3));
+        assert!(r.right <= 1920 && r.bottom <= 1032);
     }
 
     #[test]
@@ -275,21 +309,26 @@ mod tests {
         t.monitor.left -= 1920;
         t.monitor.right -= 1920;
         t.tray = None;
-        let Placement::OnTaskbar(r) = place_strip(Some(&t), 252, Some(10), area()) else {
-            panic!("esperava barra");
-        };
+        let r = above(place_stage(Some(&t), STAGE, Some(10), area(), 0));
         assert!(r.left >= -1920 && r.right <= 0);
     }
 
     #[test]
-    fn width_is_capped_on_small_taskbars() {
-        let mut t = tb(1032, 72, 96);
-        t.rect.right = 800;
+    fn scale_shrinks_to_fit_small_screens() {
+        let mut t = tb(552, 48, 96);
+        t.rect.right = 300;
+        t.monitor.right = 300;
+        t.monitor.bottom = 600;
         t.tray = None;
-        let Placement::OnTaskbar(r) = place_strip(Some(&t), 252, None, area()) else {
-            panic!("esperava barra");
-        };
-        assert!(r.width() <= 800 * MAX_WIDTH_PM / 1000);
+        let r = above(place_stage(Some(&t), STAGE, None, area(), 1));
+        assert_eq!(r.width(), 132 * 2);
+        // Sem espaço nem na menor escala: oculto.
+        t.rect.right = 100;
+        t.monitor.right = 100;
+        assert_eq!(
+            place_stage(Some(&t), STAGE, None, area(), 0),
+            Placement::Hidden
+        );
     }
 
     #[test]

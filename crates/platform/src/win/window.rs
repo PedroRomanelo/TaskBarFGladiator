@@ -8,7 +8,9 @@ use crate::layout::Rect;
 use std::cell::Cell;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows_sys::Win32::UI::Input::KeyboardAndMouse::{ReleaseCapture, SetCapture, SetFocus};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    ReleaseCapture, SetCapture, SetFocus, TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CREATESTRUCTW, CS_HREDRAW, CS_VREDRAW, CreateWindowExW, DefWindowProcW, DestroyWindow,
     GWLP_USERDATA, GetWindowLongPtrW, HWND_TOPMOST, IDC_ARROW, IsWindowVisible, KillTimer,
@@ -23,12 +25,18 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WTS_REMOTE_DISCONNECT, WTS_SESSION_LOCK, WTS_SESSION_UNLOCK,
 };
 
+/// `WM_MOUSELEAVE`: o `windows-sys` só expõe esta constante no módulo de controles comuns, que o
+/// projeto não usa.
+const WM_MOUSELEAVE: u32 = 0x02A3;
+
 /// Mensagem de callback do ícone da bandeja.
 pub const TRAY_CALLBACK: u32 = WM_APP + 1;
 
 thread_local! {
     static MSG_TASKBAR_CREATED: Cell<u32> = const { Cell::new(0) };
     static MSG_SHOW_INSTANCE: Cell<u32> = const { Cell::new(0) };
+    /// Verdadeiro enquanto a faixa aguarda o aviso de saída do mouse (`WM_MOUSELEAVE`).
+    static STRIP_MOUSE_TRACKED: Cell<bool> = const { Cell::new(false) };
 }
 
 fn class_name(prefix: &str, id: WindowId) -> String {
@@ -316,8 +324,30 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             return 0;
         }
         WM_MOUSEMOVE => {
+            // O aviso de saída precisa ser pedido de novo a cada entrada do mouse. Em janela em
+            // camadas ele chega assim que o cursor passa para um pixel transparente.
+            if id == WindowId::Strip && !STRIP_MOUSE_TRACKED.with(Cell::get) {
+                let mut track = TRACKMOUSEEVENT {
+                    cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
+                    dwFlags: TME_LEAVE,
+                    hwndTrack: hwnd,
+                    dwHoverTime: 0,
+                };
+                // SAFETY: estrutura válida durante a chamada; `hwnd` é a janela desta mensagem. A
+                // função só registra o pedido (não envia mensagens de forma síncrona).
+                if unsafe { TrackMouseEvent(&mut track) } != 0 {
+                    STRIP_MOUSE_TRACKED.with(|t| t.set(true));
+                }
+            }
             let (x, y) = xy(lparam);
             queue::push(Event::MouseMove { window: id, x, y });
+            return 0;
+        }
+        WM_MOUSELEAVE => {
+            if id == WindowId::Strip {
+                STRIP_MOUSE_TRACKED.with(|t| t.set(false));
+            }
+            queue::push(Event::MouseLeave { window: id });
             return 0;
         }
         WM_KEYDOWN => {

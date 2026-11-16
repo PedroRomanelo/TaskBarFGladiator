@@ -1,7 +1,7 @@
-//! Primitivas: sprites de lutador, ícones e texto com contorno, com escala inteira.
+//! Primitivas: lutador em camadas, ícones, discos e texto com contorno, com escala inteira.
 
 use crate::surface::{Rgba, Surface};
-use assets::{CharMap, Frame, GLYPH_H, GLYPH_W, Icon, Ink};
+use assets::{Armor, CANVAS, Frame, GLYPH_H, GLYPH_W, Icon, Ink, Look, Turn};
 
 /// Cores de um time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -12,48 +12,91 @@ pub struct TeamColors {
     pub shade: Rgba,
 }
 
-/// Paleta do sprite.
+/// Paleta de um lutador: cores da aparência (pele, cabelo, olhos), do time e dos materiais.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpritePalette {
-    /// Contorno.
-    pub outline: Rgba,
-    /// Pele.
-    pub skin: Rgba,
-    /// Pele em sombra.
-    pub skin_shade: Rgba,
-    /// Metal.
-    pub metal: Rgba,
-    /// Metal escuro.
-    pub metal_shade: Rgba,
-    /// Couro.
-    pub leather: Rgba,
-    /// Cinto.
-    pub belt: Rgba,
-    /// Time.
-    pub team: TeamColors,
+    skin: (Rgba, Rgba),
+    hair: (Rgba, Rgba),
+    iris: Rgba,
+    team: TeamColors,
+    greave: (Rgba, Rgba),
+}
+
+const OUTLINE: Rgba = Rgba::rgb(0x1a1412);
+const EYE_WHITE: Rgba = Rgba::rgb(0xf6f2ea);
+const MOUTH: Rgba = Rgba::rgb(0x7a3b2e);
+const METAL: (Rgba, Rgba) = (Rgba::rgb(0xb9bec8), Rgba::rgb(0x737a88));
+const SHINE: Rgba = Rgba::rgb(0xf4f6fa);
+const BRONZE: (Rgba, Rgba) = (Rgba::rgb(0xd9a441), Rgba::rgb(0x9a6a22));
+const WOOD: (Rgba, Rgba) = (Rgba::rgb(0x9a6b3a), Rgba::rgb(0x6b4623));
+const LEATHER: (Rgba, Rgba) = (Rgba::rgb(0x7a4a26), Rgba::rgb(0x4f2e16));
+const CLOTH: (Rgba, Rgba) = (Rgba::rgb(0xe6dcc2), Rgba::rgb(0xb5a888));
+
+fn pair((main, shade): (u32, u32)) -> (Rgba, Rgba) {
+    (Rgba::rgb(main), Rgba::rgb(shade))
 }
 
 impl SpritePalette {
+    /// Paleta para uma aparência e um time. Índices de cor fora das tabelas dão a volta.
+    pub fn new(look: &Look, team: TeamColors) -> Self {
+        let skin = pair(assets::SKIN_TONES[usize::from(look.skin) % assets::SKIN_TONES.len()]);
+        let hair =
+            pair(assets::HAIR_COLORS[usize::from(look.hair_color) % assets::HAIR_COLORS.len()]);
+        let iris = Rgba::rgb(assets::EYE_COLORS[usize::from(look.eyes) % assets::EYE_COLORS.len()]);
+        let greave = match look.armor {
+            Armor::None | Armor::Tunic => skin,
+            Armor::Leather => LEATHER,
+            Armor::Mail => METAL,
+            Armor::Plates => BRONZE,
+        };
+        Self {
+            skin,
+            hair,
+            iris,
+            team,
+            greave,
+        }
+    }
+
     fn color(&self, ink: Ink) -> Option<Rgba> {
         Some(match ink {
             Ink::None => return None,
-            Ink::Outline => self.outline,
-            Ink::Skin => self.skin,
-            Ink::SkinShade => self.skin_shade,
-            Ink::Metal => self.metal,
-            Ink::MetalShade => self.metal_shade,
+            Ink::Outline => OUTLINE,
+            Ink::Skin => self.skin.0,
+            Ink::SkinShade => self.skin.1,
+            Ink::Hair => self.hair.0,
+            Ink::HairShade => self.hair.1,
+            Ink::EyeWhite => EYE_WHITE,
+            Ink::Iris => self.iris,
+            Ink::Mouth => MOUTH,
             Ink::Team => self.team.main,
             Ink::TeamShade => self.team.shade,
-            Ink::Leather => self.leather,
-            Ink::Belt => self.belt,
+            Ink::Metal => METAL.0,
+            Ink::MetalShade => METAL.1,
+            Ink::Shine => SHINE,
+            Ink::Bronze => BRONZE.0,
+            Ink::BronzeShade => BRONZE.1,
+            Ink::Wood => WOOD.0,
+            Ink::WoodShade => WOOD.1,
+            Ink::Leather => LEATHER.0,
+            Ink::LeatherShade => LEATHER.1,
+            Ink::Cloth => CLOTH.0,
+            Ink::ClothShade => CLOTH.1,
+            Ink::Greave => self.greave.0,
+            Ink::GreaveShade => self.greave.1,
         })
     }
 }
 
-/// Desenha um quadro de lutador com o canto superior esquerdo em `(x, y)` (pixels físicos).
+/// Quantas linhas o lutador caído desce para encostar as costas no chão.
+const LYING_DROP: i32 = 6;
+
+/// Desenha um quadro de lutador com o canto superior esquerdo da tela de [`CANVAS`] ×
+/// [`CANVAS`] em `(x, y)` (pixels físicos).
 ///
-/// `mirror` inverte horizontalmente (oponente voltado para a esquerda). `flash` desenha todos os
-/// pixels opacos em branco (indicação de golpe recebido).
+/// As peças vêm de [`assets::rig`], na ordem de desenho. `mirror` inverte horizontalmente
+/// (oponente voltado para a esquerda). `flash` desenha todos os pixels opacos em branco (indicação
+/// de golpe recebido).
 #[allow(clippy::too_many_arguments)]
 pub fn fighter(
     s: &mut Surface,
@@ -61,43 +104,55 @@ pub fn fighter(
     y: i32,
     scale: i32,
     frame: Frame,
+    look: &Look,
     palette: &SpritePalette,
     mirror: bool,
     flash: bool,
 ) {
-    let map = assets::fighter_frame(frame);
-    blit_map(s, x, y, scale, &map, mirror, |ink| {
-        let c = palette.color(ink)?;
-        Some(if flash && ink != Ink::Outline {
-            Rgba::rgb(0xffffff)
-        } else {
-            c
-        })
-    });
+    let rig = assets::rig(frame, look);
+    for piece in rig.pieces.iter().flatten() {
+        let (w, h) = (piece.map.width() as i32, piece.map.height() as i32);
+        for my in 0..h {
+            for mx in 0..w {
+                let ink = piece.map.ink(mx as usize, my as usize);
+                let Some(color) = palette.color(ink) else {
+                    continue;
+                };
+                // Posição na tela do lutador, com a rotação da peça.
+                let (mut cx, mut cy) = match piece.turn {
+                    Turn::Up => (piece.x + mx, piece.y + my),
+                    Turn::Forward => (piece.x + (h - 1 - my), piece.y + mx),
+                };
+                if rig.lying {
+                    // Tela inteira girada 90° no sentido anti-horário: cabeça para trás.
+                    (cx, cy) = (cy, CANVAS - 1 - cx + LYING_DROP);
+                }
+                if cx < 0 || cy < 0 || cx >= CANVAS || cy >= CANVAS {
+                    continue;
+                }
+                if mirror {
+                    cx = CANVAS - 1 - cx;
+                }
+                let c = if flash && ink != Ink::Outline {
+                    Rgba::rgb(0xffffff)
+                } else {
+                    color
+                };
+                s.fill_rect(x + cx * scale, y + cy * scale, scale, scale, c);
+            }
+        }
+    }
 }
 
-/// Largura e altura (em pixels lógicos) dos quadros do lutador.
-pub fn fighter_size() -> (i32, i32) {
-    let m = assets::fighter_frame(Frame::Idle);
-    (m.width() as i32, m.height() as i32)
-}
-
-fn blit_map(
-    s: &mut Surface,
-    x: i32,
-    y: i32,
-    scale: i32,
-    map: &CharMap,
-    mirror: bool,
-    color: impl Fn(Ink) -> Option<Rgba>,
-) {
-    let w = map.width();
-    for my in 0..map.height() {
-        for mx in 0..w {
-            let ink = map.ink(mx, my);
-            let Some(c) = color(ink) else { continue };
-            let sx = if mirror { w - 1 - mx } else { mx } as i32;
-            s.fill_rect(x + sx * scale, y + my as i32 * scale, scale, scale, c);
+/// Disco de diâmetro `d` (pixels lógicos) com o canto superior esquerdo em `(x, y)` (pixels
+/// físicos), desenhado na grade lógica para combinar com a pixel art.
+pub fn disc(s: &mut Surface, x: i32, y: i32, d: i32, scale: i32, color: Rgba) {
+    for j in 0..d {
+        for i in 0..d {
+            let (dx, dy) = (2 * i + 1 - d, 2 * j + 1 - d);
+            if dx * dx + dy * dy <= d * d {
+                s.fill_rect(x + i * scale, y + j * scale, scale, scale, color);
+            }
         }
     }
 }

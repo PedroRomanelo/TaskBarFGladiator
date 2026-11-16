@@ -10,6 +10,7 @@ mod controller;
 mod i18n;
 mod identity;
 mod logging;
+mod looks;
 mod storage;
 #[cfg(windows)]
 mod win_main;

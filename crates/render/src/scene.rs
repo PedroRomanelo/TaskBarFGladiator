@@ -1,21 +1,52 @@
-//! Cenas: a faixa da barra de tarefas e o painel expandido.
+//! Cenas: o palco acima da barra de tarefas e o painel expandido.
 //!
 //! As cenas recebem "visões" (dados prontos para exibir, sem depender do crate `game`) e devolvem as
-//! regiões clicáveis. Todas as medidas abaixo são em pixels lógicos (altura base 24); a escala
-//! inteira é aplicada no desenho.
+//! regiões clicáveis. Todas as medidas abaixo são em pixels lógicos da arte; a escala inteira é
+//! aplicada no desenho.
+//!
+//! Organização do palco (de cima para baixo):
+//!
+//! ```text
+//!  0.. 7  legenda da etapa (o que está acontecendo / o que fazer agora)
+//!  8..47  arena: os dois lutadores e, no modo manual, os botões de ação em volta do jogador
+//! 48      chão (areia, com uma marca por casa)
+//! 49..57  faixa de status, encostada na barra de tarefas: vida e fôlego na luta; nível, ouro e o
+//!         botão principal (LUTAR / CONTINUAR) fora dela
+//! ```
 
 use crate::draw::{self, SpritePalette, TeamColors};
 use crate::surface::{Rgba, Surface};
-use assets::{Frame, Icon};
+use assets::{CANVAS, CENTER_X, Frame, Icon, Look};
 
-/// Altura lógica da faixa.
-pub const STRIP_BASE_HEIGHT: i32 = 24;
-/// Largura lógica da faixa.
-pub const STRIP_WIDTH: i32 = 252;
+/// Largura lógica do palco.
+pub const STAGE_WIDTH: i32 = 132;
+/// Altura lógica do palco.
+pub const STAGE_HEIGHT: i32 = 58;
 /// Largura lógica do painel.
 pub const PANEL_WIDTH: i32 = 200;
 /// Altura lógica do painel.
 pub const PANEL_HEIGHT: i32 = 150;
+
+/// Linha do topo da tela dos lutadores.
+const FIGHTER_Y: i32 = 16;
+/// Linha do chão.
+const FLOOR_Y: i32 = 48;
+/// Primeira linha da faixa de status.
+const BAND_Y: i32 = 49;
+/// Altura da faixa de status.
+const BAND_H: i32 = 9;
+/// Coluna onde começa a arena.
+const ARENA_X: i32 = 15;
+/// Largura de uma casa da arena.
+const CELL_W: i32 = 10;
+/// Diâmetro de um botão de ação.
+const BUTTON_D: i32 = 9;
+/// Distância vertical entre botões de ação.
+const BUTTON_PITCH: i32 = 10;
+/// Linha do primeiro botão de ação.
+const BUTTONS_Y: i32 = 9;
+/// Distância entre o eixo do lutador e a coluna de botões ao lado dele.
+const BUTTON_GAP: i32 = 11;
 
 /// Identificador de uma região clicável.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,10 +108,23 @@ pub const ACTION_ICONS: [Icon; 8] = [
     Icon::Taunt,
 ];
 
+/// Lado do jogador em que cada botão de ação aparece e sua linha na coluna, na ordem das ações:
+/// para trás ficam recuar e as ações de preparo; para a frente, avançar e os golpes.
+const ACTION_SLOTS: [(bool, i32); 8] = [
+    (true, 0),
+    (false, 0),
+    (true, 1),
+    (true, 2),
+    (true, 3),
+    (false, 1),
+    (false, 2),
+    (false, 3),
+];
+
 /// Tema visual.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Theme {
-    /// Barra de tarefas clara (texto escuro com contorno claro).
+    /// Barra de tarefas clara (faixa de status clara com texto escuro).
     pub light: bool,
     /// Alto contraste (cores sólidas preto/branco).
     pub high_contrast: bool,
@@ -96,10 +140,15 @@ impl Theme {
     }
 
     fn outline(&self) -> Rgba {
-        if self.light && !self.high_contrast {
-            Rgba::rgb(0xffffff)
-        } else {
-            Rgba::rgb(0x000000)
+        Rgba::rgb(0x000000)
+    }
+
+    /// Fundo da faixa de status (acompanha a cor da barra de tarefas).
+    fn band(&self) -> Rgba {
+        match (self.high_contrast, self.light) {
+            (true, _) => Rgba::rgb(0x000000),
+            (false, true) => Rgba::rgb(0xeeeef2).with_alpha(240),
+            (false, false) => Rgba::rgb(0x1c1c22).with_alpha(240),
         }
     }
 
@@ -119,16 +168,8 @@ impl Theme {
         }
     }
 
-    fn bad(&self) -> Rgba {
-        match (self.high_contrast, self.light) {
-            (true, _) => self.fg(),
-            (false, true) => Rgba::rgb(0xa02020),
-            (false, false) => Rgba::rgb(0xe06f6f),
-        }
-    }
-
-    fn palette(&self, team: Team) -> SpritePalette {
-        let team_colors = if self.high_contrast {
+    fn team(&self, team: Team) -> TeamColors {
+        if self.high_contrast {
             match team {
                 Team::Player => TeamColors {
                     main: Rgba::rgb(0xffffff),
@@ -142,24 +183,42 @@ impl Theme {
         } else {
             match team {
                 Team::Player => TeamColors {
-                    main: Rgba::rgb(0xb83a2e),
-                    shade: Rgba::rgb(0x7c2219),
+                    main: Rgba::rgb(0xc8402f),
+                    shade: Rgba::rgb(0x862419),
                 },
                 Team::Opponent => TeamColors {
-                    main: Rgba::rgb(0x3a5cb8),
-                    shade: Rgba::rgb(0x223a7c),
+                    main: Rgba::rgb(0x3a66c8),
+                    shade: Rgba::rgb(0x223f86),
                 },
             }
-        };
-        SpritePalette {
-            outline: Rgba::rgb(0x161210),
-            skin: Rgba::rgb(0xd9a273),
-            skin_shade: Rgba::rgb(0xa8704a),
-            metal: Rgba::rgb(0xc4c6cc),
-            metal_shade: Rgba::rgb(0x74767e),
-            leather: Rgba::rgb(0x8c5a2b),
-            belt: Rgba::rgb(0x55361a),
-            team: team_colors,
+        }
+    }
+}
+
+/// Cores do texto da legenda (sempre sobre fundo escuro).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Tone {
+    /// Informação neutra.
+    #[default]
+    Normal,
+    /// Pede uma ação do jogador.
+    Prompt,
+    /// Algo bom para o jogador.
+    Good,
+    /// Algo ruim para o jogador.
+    Bad,
+}
+
+impl Tone {
+    fn color(self, high_contrast: bool) -> Rgba {
+        if high_contrast {
+            return Rgba::rgb(0xffffff);
+        }
+        match self {
+            Tone::Normal => Rgba::rgb(0xf0f0f0),
+            Tone::Prompt => Rgba::rgb(0xffd23c),
+            Tone::Good => Rgba::rgb(0x6fe06f),
+            Tone::Bad => Rgba::rgb(0xff7a6a),
         }
     }
 }
@@ -171,6 +230,31 @@ pub enum Team {
     Player,
     /// Oponente (direita).
     Opponent,
+}
+
+/// Texto que sobe acima da cabeça de um lutador.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FloatText {
+    /// Dano recebido.
+    Damage {
+        /// Valor.
+        amount: i32,
+        /// Golpe crítico.
+        critical: bool,
+    },
+    /// Fôlego recuperado.
+    Stamina(i32),
+    /// Palavra curta já traduzida (ex.: "ERROU").
+    Label(&'static str),
+}
+
+/// Texto flutuante e quanto ele já subiu.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Floater {
+    /// Conteúdo.
+    pub text: FloatText,
+    /// Linhas lógicas já percorridas (0 = recém-criado).
+    pub rise: i32,
 }
 
 /// Dados de um lutador para exibição.
@@ -194,6 +278,10 @@ pub struct FighterView {
     pub frame: Frame,
     /// Pisca em branco (golpe recebido).
     pub flash: bool,
+    /// Aparência e equipamento.
+    pub look: Look,
+    /// Texto flutuante acima da cabeça.
+    pub float: Option<Floater>,
 }
 
 /// Estado de um botão.
@@ -205,172 +293,133 @@ pub enum ButtonState {
     Disabled,
 }
 
-/// Conteúdo da faixa.
+/// Etapa do jogo mostrada no palco.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StripView {
-    /// Luta em andamento.
-    Fight {
-        /// Jogador.
-        player: FighterView,
-        /// Oponente.
-        opponent: FighterView,
-        /// Número de casas da arena.
-        cells: u8,
-        /// Botões de ação (modo manual) ou `None` (modo automático).
-        buttons: Option<[ButtonState; 8]>,
-        /// Modo automático pausado.
-        paused: bool,
-        /// Texto curto opcional sobre a arena (ex.: "CRÍTICO!").
-        banner: Option<String>,
-    },
-    /// Fora de luta.
+pub enum Phase {
+    /// Fora de luta: o jogador se prepara e escolhe quando lutar.
     Hub {
-        /// Nome do jogador.
-        name: String,
-        /// Nível.
-        level: u8,
         /// Ouro.
         gold: u32,
         /// Pontos de atributo livres.
         unspent: u16,
-        /// Rótulo do próximo desafio (já traduzido).
-        next_label: String,
+        /// Rótulo curto de nível (já traduzido, ex.: "NV").
+        level_label: String,
+        /// Rótulo curto de pontos (já traduzido, ex.: "PTS").
+        points_label: String,
         /// Rótulo do botão de luta (já traduzido).
         fight_label: String,
     },
+    /// Luta em andamento.
+    Fight {
+        /// Botões de ação (modo manual) ou `None` (modo automático).
+        buttons: Option<[ButtonState; 8]>,
+        /// Modo automático pausado.
+        paused: bool,
+    },
     /// Resultado de luta.
     Result {
-        /// Título (já traduzido, ex.: "VITÓRIA!").
-        title: String,
-        /// Detalhe (ex.: "+45 XP  +30 OURO").
+        /// Recompensa (ex.: "+45 XP  +30 OURO").
         detail: String,
-        /// Vitória (cor do título).
-        won: bool,
         /// Rótulo do botão de continuar.
         ok_label: String,
     },
 }
 
-/// Escala inteira e deslocamento vertical para uma altura física de faixa.
-pub fn strip_scale(height_px: i32) -> (i32, i32) {
-    let s = (height_px / STRIP_BASE_HEIGHT).max(1);
-    let oy = ((height_px - STRIP_BASE_HEIGHT * s) / 2).max(0);
-    (s, oy)
+/// Conteúdo do palco.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StageView {
+    /// Jogador.
+    pub player: FighterView,
+    /// Oponente (na preparação, o próximo desafio).
+    pub opponent: FighterView,
+    /// Número de casas da arena.
+    pub cells: u8,
+    /// Legenda da etapa: o que está acontecendo ou o que fazer agora.
+    pub caption: String,
+    /// Cor da legenda.
+    pub tone: Tone,
+    /// Segunda linha opcional (dica), abaixo da legenda.
+    pub hint: String,
+    /// Etapa.
+    pub phase: Phase,
 }
 
-/// Desenha a faixa inteira. `hits` é limpo e preenchido com as regiões clicáveis.
-pub fn draw_strip(s: &mut Surface, view: &StripView, theme: Theme, hits: &mut Vec<Hit>) {
+/// Escala inteira para uma altura física de palco.
+pub fn stage_scale(height_px: i32) -> i32 {
+    (height_px / STAGE_HEIGHT).max(1)
+}
+
+/// Desenha o palco inteiro. `hover` é a região sob o mouse (realce). `hits` é limpo e preenchido
+/// com as regiões clicáveis.
+pub fn draw_stage(
+    s: &mut Surface,
+    view: &StageView,
+    theme: Theme,
+    hover: Option<HitId>,
+    hits: &mut Vec<Hit>,
+) {
     hits.clear();
     s.clear(Rgba::TRANSPARENT);
-    let (sc, oy) = strip_scale(s.height() as i32);
+    let sc = stage_scale(s.height() as i32);
+    // O chão fica sempre encostado na base da janela (que encosta na barra de tarefas).
     let ctx = Ctx {
         sc,
         ox: 0,
-        oy,
+        oy: (s.height() as i32 - STAGE_HEIGHT * sc).max(0),
         theme,
+        hover,
     };
-    match view {
-        StripView::Fight {
-            player,
-            opponent,
-            cells,
-            buttons,
-            paused,
-            banner,
-        } => {
-            ctx.fighter_panel(s, 1, player, Team::Player);
-            let arena_x = 30;
-            let cell_w = 10;
-            let arena_w = i32::from(*cells) * cell_w;
-            ctx.arena(s, arena_x, arena_w, *cells, cell_w, player, opponent);
-            ctx.fighter_panel(s, arena_x + arena_w + 2, opponent, Team::Opponent);
-            if let Some(b) = banner {
-                let w = draw::text_width(b);
-                let x = arena_x + (arena_w - w) / 2;
-                ctx.text(s, x, 1, b, ctx.theme.gold());
-            }
-            let bx = arena_x + arena_w + 32;
-            match buttons {
-                Some(states) => {
-                    for (i, (icon, st)) in ACTION_ICONS.iter().zip(states.iter()).enumerate() {
-                        let x = bx + i as i32 * 10;
-                        let enabled = *st == ButtonState::Enabled;
-                        ctx.button(s, x, 7, *icon, enabled, HitId::Action(i as u8), hits);
-                    }
-                    ctx.button(s, bx + 80, 7, Icon::Menu, true, HitId::OpenPanel, hits);
-                }
-                None => {
-                    let icon = if *paused { Icon::Play } else { Icon::Pause };
-                    ctx.button(s, bx, 7, icon, true, HitId::TogglePause, hits);
-                    ctx.text(s, bx + 12, 9, "AUTO", ctx.theme.fg());
-                    ctx.button(s, bx + 80, 7, Icon::Menu, true, HitId::OpenPanel, hits);
-                }
-            }
-        }
-        StripView::Hub {
-            name,
-            level,
+    ctx.floor(s, view.cells);
+    ctx.fighters(s, &view.player, &view.opponent);
+    match &view.phase {
+        Phase::Hub {
             gold,
             unspent,
-            next_label,
+            level_label,
+            points_label,
             fight_label,
         } => {
-            ctx.button(s, 1, 7, Icon::Menu, true, HitId::OpenPanel, hits);
-            let fg = ctx.theme.fg();
+            ctx.band_button(s, 0, Icon::Menu, HitId::OpenPanel, hits);
             let mut buf = NumBuf::new();
-            ctx.text_max(s, 13, 3, name, 12, fg);
-            let x = 13 + ctx.text(s, 13, 13, "NV ", fg) / sc;
-            ctx.text(s, x, 13, buf.fmt(u32::from(*level)), fg);
-            ctx.text(s, 70, 3, buf.fmt(*gold), ctx.theme.gold());
+            let fg = ctx.theme.fg();
+            let mut x = 12;
+            x += ctx.band_text(s, x, level_label, 3, fg) + 2;
+            x += ctx.band_text(s, x, buf.fmt(u32::from(view.player.level)), 3, fg) + 5;
+            x += ctx.band_text(s, x, buf.fmt(*gold), 7, ctx.theme.gold());
+            x += ctx.band_text(s, x, "$", 1, ctx.theme.gold()) + 5;
             if *unspent > 0 {
-                let w = ctx.text(s, 70, 13, "+", ctx.theme.good()) / sc;
-                ctx.text(
-                    s,
-                    70 + w + 1,
-                    13,
-                    buf.fmt(u32::from(*unspent)),
-                    ctx.theme.good(),
-                );
+                let good = ctx.theme.good();
+                x += ctx.band_text(s, x, "+", 1, good);
+                x += ctx.band_text(s, x, buf.fmt(u32::from(*unspent)), 3, good) + 2;
+                ctx.band_text(s, x, points_label, 4, good);
             }
-            ctx.text_max(s, 108, 8, next_label, 26, fg);
-            let bw = draw::text_width(fight_label) + 6;
-            ctx.label_button(
-                s,
-                STRIP_WIDTH - bw - 2,
-                5,
-                bw,
-                13,
-                fight_label,
-                HitId::Fight,
-                hits,
-            );
+            ctx.band_label_button(s, fight_label, HitId::Fight, hits);
         }
-        StripView::Result {
-            title,
-            detail,
-            won,
-            ok_label,
-        } => {
-            let color = if *won {
-                ctx.theme.good()
-            } else {
-                ctx.theme.bad()
-            };
-            ctx.text_max(s, 4, 3, title, 20, color);
-            ctx.text_max(s, 4, 13, detail, 40, ctx.theme.fg());
-            let bw = draw::text_width(ok_label) + 6;
-            ctx.label_button(
-                s,
-                STRIP_WIDTH - bw - 2,
-                5,
-                bw,
-                13,
-                ok_label,
-                HitId::Continue,
-                hits,
-            );
+        Phase::Fight { buttons, paused } => {
+            ctx.hud(s, &view.player, Team::Player);
+            ctx.hud(s, &view.opponent, Team::Opponent);
+            ctx.band_button(s, 57, Icon::Menu, HitId::OpenPanel, hits);
+            match buttons {
+                Some(states) => ctx.action_buttons(s, &view.player, &view.opponent, states, hits),
+                None => {
+                    let icon = if *paused { Icon::Play } else { Icon::Pause };
+                    ctx.band_button(s, 67, icon, HitId::TogglePause, hits);
+                }
+            }
+        }
+        Phase::Result { detail, ok_label } => {
+            ctx.band_button(s, 0, Icon::Menu, HitId::OpenPanel, hits);
+            ctx.band_text(s, 12, detail, 20, ctx.theme.fg());
+            ctx.band_label_button(s, ok_label, HitId::Continue, hits);
         }
     }
+    ctx.caption(s, &view.caption, view.tone);
+    if !view.hint.is_empty() {
+        let w = draw::text_width(&view.hint).min(STAGE_WIDTH - 2);
+        ctx.text(s, (STAGE_WIDTH - w) / 2, 9, &view.hint, ctx.theme_air_fg());
+    }
+    ctx.floater(s, &view.player);
+    ctx.floater(s, &view.opponent);
 }
 
 /// Formata números sem alocar (buffer na pilha).
@@ -387,8 +436,14 @@ impl NumBuf {
         }
     }
 
-    fn fmt(&mut self, mut v: u32) -> &str {
-        let mut tmp = [0u8; 12];
+    fn fmt(&mut self, v: u32) -> &str {
+        self.fmt_signed(i64::from(v), false)
+    }
+
+    /// Número com sinal opcional na frente (`+` para positivos quando `plus` é verdadeiro).
+    fn fmt_signed(&mut self, value: i64, plus: bool) -> &str {
+        let mut v = value.unsigned_abs();
+        let mut tmp = [0u8; 11];
         let mut n = 0;
         loop {
             tmp[n] = b'0' + (v % 10) as u8;
@@ -398,20 +453,29 @@ impl NumBuf {
                 break;
             }
         }
-        for i in 0..n {
-            self.buf[i] = tmp[n - 1 - i];
+        let mut len = 0;
+        if value < 0 {
+            self.buf[0] = b'-';
+            len = 1;
+        } else if plus {
+            self.buf[0] = b'+';
+            len = 1;
         }
-        self.len = n;
+        for i in 0..n {
+            self.buf[len + i] = tmp[n - 1 - i];
+        }
+        self.len = len + n;
         std::str::from_utf8(&self.buf[..self.len]).unwrap_or("")
     }
 }
 
-/// Contexto de desenho: escala, deslocamento e tema.
+/// Contexto de desenho: escala, deslocamento, tema e região sob o mouse.
 struct Ctx {
     sc: i32,
     ox: i32,
     oy: i32,
     theme: Theme,
+    hover: Option<HitId>,
 }
 
 impl Ctx {
@@ -427,6 +491,13 @@ impl Ctx {
         s.fill_rect(self.px(x), self.py(y), w * self.sc, h * self.sc, c);
     }
 
+    /// Cor do texto solto no ar (sem fundo próprio): sempre claro com contorno escuro, legível
+    /// sobre qualquer janela que esteja atrás.
+    fn theme_air_fg(&self) -> Rgba {
+        Rgba::rgb(0xffffff)
+    }
+
+    /// Texto com contorno (para o que fica solto no ar).
     fn text(&self, s: &mut Surface, x: i32, y: i32, t: &str, c: Rgba) -> i32 {
         draw::text(
             s,
@@ -439,160 +510,302 @@ impl Ctx {
         )
     }
 
-    fn text_max(&self, s: &mut Surface, x: i32, y: i32, t: &str, max: usize, c: Rgba) -> i32 {
-        draw::text_max(
-            s,
-            self.px(x),
-            self.py(y),
-            self.sc,
-            t,
-            max,
-            c,
-            Some(self.theme.outline()),
-        )
+    /// Texto na faixa de status; devolve a largura lógica desenhada.
+    fn band_text(&self, s: &mut Surface, x: i32, t: &str, max: usize, c: Rgba) -> i32 {
+        draw::text_max(s, self.px(x), self.py(BAND_Y + 1), self.sc, t, max, c, None) / self.sc
     }
 
-    fn fighter_panel(&self, s: &mut Surface, x: i32, f: &FighterView, team: Team) {
-        let fg = self.theme.fg();
-        self.text_max(s, x, 1, &f.name, 6, fg);
-        // HP: barra cheia (posição superior). Fôlego: segmentos (posição inferior). As duas se
-        // distinguem pela forma e posição, não só pela cor.
-        let bw = 26;
-        self.rect(s, x, 9, bw, 4, Rgba::rgb(0x000000).with_alpha(200));
-        let hp_w = if f.hp_max > 0 {
-            (i64::from(f.hp.max(0)) * i64::from(bw - 2) / i64::from(f.hp_max)) as i32
-        } else {
-            0
-        };
-        let hp_color = match team {
-            Team::Player => Rgba::rgb(0xe8573c),
-            Team::Opponent => Rgba::rgb(0xe8573c),
-        };
-        let hp_color = if self.theme.high_contrast {
+    fn hit(&self, x: i32, y: i32, w: i32, h: i32, id: HitId) -> Hit {
+        Hit {
+            x: self.px(x),
+            y: self.py(y),
+            w: w * self.sc,
+            h: h * self.sc,
+            id,
+        }
+    }
+
+    /// Centro de um lutador em milésimos de pixel lógico.
+    fn center_milli(f: &FighterView) -> i32 {
+        ARENA_X * 1000 + f.pos_pm * CELL_W + CELL_W * 500
+    }
+
+    /// Centro de um lutador arredondado para a casa mais próxima (pixels lógicos).
+    fn center_cell(f: &FighterView) -> i32 {
+        let cell = (f.pos_pm + 500).div_euclid(1000);
+        ARENA_X + cell * CELL_W + CELL_W / 2
+    }
+
+    fn floor(&self, s: &mut Surface, cells: u8) {
+        let hc = self.theme.high_contrast;
+        self.rect(s, 0, BAND_Y, STAGE_WIDTH, BAND_H, self.theme.band());
+        let sand = if hc {
             Rgba::rgb(0xffffff)
         } else {
-            hp_color
+            Rgba::rgb(0xd9b36a)
         };
-        self.rect(s, x + 1, 10, hp_w, 2, hp_color);
-        let segs = 8;
-        let filled = if f.stamina_max > 0 {
-            (i64::from(f.stamina.max(0)) * i64::from(segs) / i64::from(f.stamina_max)) as i32
+        let mark = if hc {
+            Rgba::rgb(0x000000)
         } else {
-            0
+            Rgba::rgb(0x8a6a34)
         };
-        for i in 0..segs {
-            let c = if i < filled {
-                if self.theme.high_contrast {
-                    Rgba::rgb(0xffffff)
-                } else {
-                    Rgba::rgb(0xf2c53d)
-                }
-            } else {
-                Rgba::rgb(0x000000).with_alpha(160)
-            };
-            self.rect(s, x + i * 3 + 1, 14, 2, 2, c);
+        self.rect(s, 0, FLOOR_Y, STAGE_WIDTH, 1, sand);
+        for c in 0..=i32::from(cells) {
+            self.rect(s, ARENA_X + c * CELL_W, FLOOR_Y, 1, 1, mark);
         }
-        let mut buf = NumBuf::new();
-        self.text(s, x, 17, buf.fmt(f.hp.max(0) as u32), fg);
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn arena(
-        &self,
-        s: &mut Surface,
-        x: i32,
-        w: i32,
-        cells: u8,
-        cell_w: i32,
-        p: &FighterView,
-        o: &FighterView,
-    ) {
-        let line = self.theme.fg().with_alpha(110);
-        self.rect(s, x, 22, w, 1, line);
-        for c in 0..=i32::from(cells) {
-            self.rect(s, x + c * cell_w, 21, 1, 1, line);
-        }
-        let (fw, _) = draw::fighter_size();
-        for (f, team, mirror) in [(p, Team::Player, false), (o, Team::Opponent, true)] {
-            let center = x * 1000 + f.pos_pm * cell_w + cell_w * 500;
-            let left = center / 1000 - fw / 2;
+    fn fighters(&self, s: &mut Surface, p: &FighterView, o: &FighterView) {
+        // Quem está golpeando fica por cima.
+        let order = if o.frame == Frame::Attack {
+            [(p, Team::Player), (o, Team::Opponent)]
+        } else {
+            [(o, Team::Opponent), (p, Team::Player)]
+        };
+        for (f, team) in order {
+            let mirror = team == Team::Opponent;
+            let axis = if mirror {
+                CANVAS - 1 - CENTER_X
+            } else {
+                CENTER_X
+            };
+            // A posição horizontal usa pixels físicos: o movimento entre casas fica suave.
+            let x = self.ox + Self::center_milli(f) * self.sc / 1000 - axis * self.sc;
+            let palette = SpritePalette::new(&f.look, self.theme.team(team));
             draw::fighter(
                 s,
-                self.px(left),
-                self.py(2),
+                x,
+                self.py(FIGHTER_Y),
                 self.sc,
                 f.frame,
-                &self.theme.palette(team),
+                &f.look,
+                &palette,
                 mirror,
                 f.flash,
             );
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn button(
-        &self,
-        s: &mut Surface,
-        x: i32,
-        y: i32,
-        icon: Icon,
-        enabled: bool,
-        id: HitId,
-        hits: &mut Vec<Hit>,
-    ) {
-        let bg = if enabled {
-            Rgba::rgb(0x2a2a33).with_alpha(230)
-        } else {
-            Rgba::rgb(0x2a2a33).with_alpha(110)
+    /// Nome, vida e fôlego de um lutador na faixa de status. Vida e fôlego se distinguem pela forma
+    /// e posição (barra cheia em cima, segmentos embaixo), não só pela cor.
+    fn hud(&self, s: &mut Surface, f: &FighterView, team: Team) {
+        let hc = self.theme.high_contrast;
+        let fg = self.theme.fg();
+        let bar_w = 28;
+        let name_w = draw::text_width(&f.name).min(6 * draw::CHAR_ADVANCE - 1);
+        let (name_x, bar_x) = match team {
+            Team::Player => (2, 28),
+            Team::Opponent => (STAGE_WIDTH - 2 - name_w, STAGE_WIDTH - 28 - bar_w),
         };
-        self.rect(s, x, y, 9, 9, bg);
-        let fg = if enabled {
-            Rgba::rgb(0xf0f0f0)
+        self.band_text(s, name_x, &f.name, 6, fg);
+        let empty = if self.theme.light && !hc {
+            Rgba::rgb(0x000000).with_alpha(70)
         } else {
-            Rgba::rgb(0x8a8a8a)
+            Rgba::rgb(0xffffff).with_alpha(50)
         };
-        draw::icon(s, self.px(x + 1), self.py(y + 1), self.sc, icon, fg);
-        if enabled {
-            hits.push(Hit {
-                x: self.px(x),
-                y: self.py(y),
-                w: 9 * self.sc,
-                h: 9 * self.sc,
-                id,
-            });
+        self.rect(s, bar_x, BAND_Y + 2, bar_w, 3, empty);
+        let hp_w = if f.hp_max > 0 {
+            (i64::from(f.hp.max(0)) * i64::from(bar_w) / i64::from(f.hp_max)) as i32
+        } else {
+            0
+        };
+        let hp_color = if hc { fg } else { Rgba::rgb(0xe8573c) };
+        // A vida do oponente esvazia em direção ao centro do palco, como a do jogador.
+        let hp_x = match team {
+            Team::Player => bar_x,
+            Team::Opponent => bar_x + bar_w - hp_w,
+        };
+        self.rect(s, hp_x, BAND_Y + 2, hp_w, 3, hp_color);
+        let segs = 7;
+        let filled = if f.stamina_max > 0 {
+            (i64::from(f.stamina.max(0)) * i64::from(segs) / i64::from(f.stamina_max)) as i32
+        } else {
+            0
+        };
+        let st_color = if hc { fg } else { Rgba::rgb(0xe0a92a) };
+        for i in 0..segs {
+            let lit = match team {
+                Team::Player => i < filled,
+                Team::Opponent => i >= segs - filled,
+            };
+            self.rect(
+                s,
+                bar_x + i * 4,
+                BAND_Y + 6,
+                3,
+                2,
+                if lit { st_color } else { empty },
+            );
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn label_button(
+    /// Botões de ação em volta do jogador: os de recuo e preparo atrás dele, o avanço e os golpes
+    /// à frente. A coluna da frente passa para depois do oponente quando os dois estão próximos,
+    /// para nunca cobrir a luta.
+    fn action_buttons(
         &self,
         s: &mut Surface,
-        x: i32,
-        y: i32,
-        w: i32,
-        h: i32,
-        label: &str,
-        id: HitId,
+        p: &FighterView,
+        o: &FighterView,
+        states: &[ButtonState; 8],
         hits: &mut Vec<Hit>,
     ) {
-        self.rect(s, x, y, w, h, Rgba::rgb(0x2a2a33).with_alpha(235));
-        self.rect(s, x, y, w, 1, Rgba::rgb(0xffffff).with_alpha(60));
+        let pc = Self::center_cell(p);
+        let oc = Self::center_cell(o);
+        let back_x = (pc - BUTTON_GAP - BUTTON_D).max(0);
+        let between = pc + BUTTON_GAP;
+        let front_x = if between + BUTTON_D <= oc - BUTTON_GAP {
+            between
+        } else {
+            (oc + BUTTON_GAP).min(STAGE_WIDTH - BUTTON_D)
+        };
+        for (i, (icon, st)) in ACTION_ICONS.iter().zip(states.iter()).enumerate() {
+            let (front, row) = ACTION_SLOTS[i];
+            let x = if front { front_x } else { back_x };
+            let y = BUTTONS_Y + row * BUTTON_PITCH;
+            let id = HitId::Action(i as u8);
+            let enabled = *st == ButtonState::Enabled;
+            let hovered = self.hover == Some(id);
+            let (bg, fg) = self.action_colors(*icon, enabled, hovered);
+            draw::disc(s, self.px(x), self.py(y), BUTTON_D, self.sc, bg);
+            draw::icon(s, self.px(x + 1), self.py(y + 1), self.sc, *icon, fg);
+            // Botões desabilitados também têm região: passar o mouse explica o motivo.
+            hits.push(self.hit(x, y, BUTTON_D, BUTTON_D, id));
+        }
+    }
+
+    /// Cores de um botão de ação. Cada grupo tem uma cor: movimento, golpes e preparo.
+    fn action_colors(&self, icon: Icon, enabled: bool, hovered: bool) -> (Rgba, Rgba) {
+        if self.theme.high_contrast {
+            let fg = if enabled {
+                Rgba::rgb(0xffffff)
+            } else {
+                Rgba::rgb(0x707070)
+            };
+            return (Rgba::rgb(0x000000), fg);
+        }
+        let (base, lit) = match icon {
+            Icon::Advance | Icon::Retreat => (0x1f4a78, 0x2f6fb0),
+            Icon::Light | Icon::Medium | Icon::Heavy => (0x7a261f, 0xb23a2e),
+            _ => (0x2f5a2a, 0x46873e),
+        };
+        match (enabled, hovered) {
+            (true, true) => (Rgba::rgb(lit), Rgba::rgb(0xffffff)),
+            (true, false) => (Rgba::rgb(base), Rgba::rgb(0xf4f4f4)),
+            (false, _) => (
+                Rgba::rgb(0x2a2a33).with_alpha(150),
+                Rgba::rgb(0x9a9aa6).with_alpha(170),
+            ),
+        }
+    }
+
+    /// Botão quadrado com ícone na faixa de status.
+    fn band_button(&self, s: &mut Surface, x: i32, icon: Icon, id: HitId, hits: &mut Vec<Hit>) {
+        let hovered = self.hover == Some(id);
+        let bg = match (self.theme.high_contrast, hovered) {
+            (true, _) => Rgba::rgb(0x000000),
+            (false, true) => Rgba::rgb(0x55556a),
+            (false, false) => Rgba::rgb(0x3a3a48),
+        };
+        self.rect(s, x, BAND_Y, BAND_H, BAND_H, bg);
+        draw::icon(
+            s,
+            self.px(x + 1),
+            self.py(BAND_Y + 1),
+            self.sc,
+            icon,
+            Rgba::rgb(0xf0f0f0),
+        );
+        hits.push(self.hit(x, BAND_Y, BAND_H, BAND_H, id));
+    }
+
+    /// Botão principal da etapa, sempre no canto direito da faixa de status.
+    fn band_label_button(&self, s: &mut Surface, label: &str, id: HitId, hits: &mut Vec<Hit>) {
+        let w = draw::text_width(label) + 8;
+        let x = STAGE_WIDTH - w;
+        let hovered = self.hover == Some(id);
+        let bg = match (self.theme.high_contrast, hovered) {
+            (true, _) => Rgba::rgb(0xffffff),
+            (false, true) => Rgba::rgb(0x3f9a3f),
+            (false, false) => Rgba::rgb(0x2f7a2f),
+        };
+        let fg = if self.theme.high_contrast {
+            Rgba::rgb(0x000000)
+        } else {
+            Rgba::rgb(0xffffff)
+        };
+        self.rect(s, x, BAND_Y, w, BAND_H, bg);
         draw::text(
             s,
-            self.px(x + 3),
-            self.py(y + (h - 6) / 2),
+            self.px(x + 4),
+            self.py(BAND_Y + 1),
             self.sc,
             label,
-            Rgba::rgb(0xf0f0f0),
+            fg,
             None,
         );
-        hits.push(Hit {
-            x: self.px(x),
-            y: self.py(y),
-            w: w * self.sc,
-            h: h * self.sc,
-            id,
-        });
+        hits.push(self.hit(x, BAND_Y, w, BAND_H, id));
+    }
+
+    /// Legenda da etapa: texto centralizado no topo, sobre uma placa escura.
+    fn caption(&self, s: &mut Surface, text: &str, tone: Tone) {
+        if text.is_empty() {
+            return;
+        }
+        let max = ((STAGE_WIDTH - 6) / draw::CHAR_ADVANCE) as usize;
+        let n = text.chars().count().min(max) as i32;
+        let w = n * draw::CHAR_ADVANCE - 1;
+        let x = (STAGE_WIDTH - w) / 2;
+        let plate = if self.theme.high_contrast {
+            Rgba::rgb(0x000000)
+        } else {
+            Rgba::rgb(0x14141a).with_alpha(225)
+        };
+        self.rect(s, x - 3, 0, w + 6, 8, plate);
+        draw::text_max(
+            s,
+            self.px(x),
+            self.py(1),
+            self.sc,
+            text,
+            max,
+            tone.color(self.theme.high_contrast),
+            None,
+        );
+    }
+
+    fn floater(&self, s: &mut Surface, f: &FighterView) {
+        let Some(fl) = f.float else {
+            return;
+        };
+        let hc = self.theme.high_contrast;
+        let mut buf = NumBuf::new();
+        let (text, color) = match fl.text {
+            FloatText::Damage { amount, critical } => (
+                buf.fmt_signed(-i64::from(amount.max(0)), false),
+                if hc {
+                    Rgba::rgb(0xffffff)
+                } else if critical {
+                    Rgba::rgb(0xffd23c)
+                } else {
+                    Rgba::rgb(0xff6a5a)
+                },
+            ),
+            FloatText::Stamina(amount) => (
+                buf.fmt_signed(i64::from(amount.max(0)), true),
+                if hc {
+                    Rgba::rgb(0xffffff)
+                } else {
+                    Rgba::rgb(0xf2c53d)
+                },
+            ),
+            FloatText::Label(l) => (l, Rgba::rgb(0xe0e0e8)),
+        };
+        let w = draw::text_width(text);
+        let cx = Self::center_milli(f) / 1000;
+        let x = (cx - w / 2).clamp(1, (STAGE_WIDTH - w - 1).max(1));
+        let y = (FIGHTER_Y + 1 - fl.rise).max(0);
+        self.text(s, x, y, text, color);
     }
 }
 
@@ -622,20 +835,27 @@ pub struct PanelView {
     pub rows: Vec<PanelRow>,
     /// Rodapé (mensagem).
     pub footer: String,
+    /// Retrato do lutador à direita das linhas (aba de aparência).
+    pub preview: Option<Look>,
 }
+
+/// Largura lógica reservada ao retrato no painel.
+const PREVIEW_W: i32 = 68;
 
 /// Desenha o painel. A escala é `largura_física / PANEL_WIDTH`.
 pub fn draw_panel(s: &mut Surface, view: &PanelView, hits: &mut Vec<Hit>) {
     hits.clear();
     let sc = (s.width() as i32 / PANEL_WIDTH).max(1);
+    let theme = Theme {
+        light: false,
+        high_contrast: false,
+    };
     let ctx = Ctx {
         sc,
         ox: 0,
         oy: 0,
-        theme: Theme {
-            light: false,
-            high_contrast: false,
-        },
+        theme,
+        hover: None,
     };
     s.clear(Rgba::rgb(0x1c1c22));
     ctx.rect(s, 0, 0, PANEL_WIDTH, 1, Rgba::rgb(0x50505c));
@@ -667,13 +887,7 @@ pub fn draw_panel(s: &mut Surface, view: &PanelView, hits: &mut Vec<Hit>) {
             },
             None,
         );
-        hits.push(Hit {
-            x: ctx.px(x),
-            y: ctx.py(3),
-            w: w * sc,
-            h: 10 * sc,
-            id: HitId::Tab(i as u8),
-        });
+        hits.push(ctx.hit(x, 3, w, 10, HitId::Tab(i as u8)));
         x += w + 2;
     }
     // Fechar.
@@ -687,13 +901,7 @@ pub fn draw_panel(s: &mut Surface, view: &PanelView, hits: &mut Vec<Hit>) {
         Rgba::rgb(0xf0f0f0),
         None,
     );
-    hits.push(Hit {
-        x: ctx.px(PANEL_WIDTH - 12),
-        y: ctx.py(3),
-        w: 9 * sc,
-        h: 9 * sc,
-        id: HitId::ClosePanel,
-    });
+    hits.push(ctx.hit(PANEL_WIDTH - 12, 3, 9, 9, HitId::ClosePanel));
 
     let fg = Rgba::rgb(0xe8e8e8);
     draw::text_max(
@@ -708,14 +916,60 @@ pub fn draw_panel(s: &mut Surface, view: &PanelView, hits: &mut Vec<Hit>) {
     );
     let top = 27;
     let row_h = 9;
+    // Com retrato, as linhas terminam antes dele.
+    let rows_right = if view.preview.is_some() {
+        PANEL_WIDTH - 4 - PREVIEW_W - 2
+    } else {
+        PANEL_WIDTH - 4
+    };
+    if let Some(look) = &view.preview {
+        let px = PANEL_WIDTH - 4 - PREVIEW_W;
+        ctx.rect(
+            s,
+            px,
+            top - 1,
+            PREVIEW_W,
+            PREVIEW_W + 2,
+            Rgba::rgb(0x50505c),
+        );
+        ctx.rect(
+            s,
+            px + 1,
+            top,
+            PREVIEW_W - 2,
+            PREVIEW_W,
+            Rgba::rgb(0x2a2a33),
+        );
+        ctx.rect(
+            s,
+            px + 1,
+            top + PREVIEW_W - 3,
+            PREVIEW_W - 2,
+            3,
+            Rgba::rgb(0xd9b36a),
+        );
+        // Retrato no dobro da escala do painel.
+        let palette = SpritePalette::new(look, theme.team(Team::Player));
+        draw::fighter(
+            s,
+            ctx.px(px + 2),
+            ctx.py(top + 1),
+            sc * 2,
+            Frame::Idle,
+            look,
+            &palette,
+            false,
+            false,
+        );
+    }
     let max_rows = ((PANEL_HEIGHT - top - 12) / row_h) as usize;
     for (i, row) in view.rows.iter().take(max_rows).enumerate() {
         let y = top + i as i32 * row_h;
         if row.highlight {
-            ctx.rect(s, 2, y - 1, PANEL_WIDTH - 4, row_h, Rgba::rgb(0x2c2c3a));
+            ctx.rect(s, 2, y - 1, rows_right - 2, row_h, Rgba::rgb(0x2c2c3a));
         }
         draw::text_max(s, ctx.px(4), ctx.py(y + 1), sc, &row.text, 24, fg, None);
-        let mut right = PANEL_WIDTH - 4;
+        let mut right = rows_right;
         if let Some((label, enabled)) = &row.button {
             let w = draw::text_width(label) + 6;
             right -= w;
@@ -739,13 +993,7 @@ pub fn draw_panel(s: &mut Surface, view: &PanelView, hits: &mut Vec<Hit>) {
                 None,
             );
             if *enabled {
-                hits.push(Hit {
-                    x: ctx.px(right),
-                    y: ctx.py(y - 1),
-                    w: w * sc,
-                    h: (row_h - 1) * sc,
-                    id: HitId::Row(i as u16),
-                });
+                hits.push(ctx.hit(right, y - 1, w, row_h - 1, HitId::Row(i as u16)));
             }
             right -= 3;
         }

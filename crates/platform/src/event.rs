@@ -52,6 +52,11 @@ pub enum Event {
         /// Y.
         y: i32,
     },
+    /// O mouse saiu da área opaca da janela (fim do realce sob o cursor).
+    MouseLeave {
+        /// Janela.
+        window: WindowId,
+    },
     /// Tecla pressionada no painel (código de tecla virtual).
     Key(u32),
     /// Temporizador.

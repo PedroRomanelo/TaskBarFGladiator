@@ -73,6 +73,43 @@ pub struct CareerStats {
     pub max_loss_streak: u32,
 }
 
+/// Aparência do lutador do jogador. É só visual: não entra em nenhuma regra. Cada campo é um
+/// índice nas tabelas de arte (tons de pele, cortes de cabelo, cores, barbas); quem desenha trata
+/// índices fora das tabelas dando a volta, então o jogo não precisa conhecer os tamanhos delas.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Appearance {
+    /// Tom de pele.
+    pub skin: u8,
+    /// Corte de cabelo.
+    pub hair: u8,
+    /// Cor do cabelo e da barba.
+    pub hair_color: u8,
+    /// Cor dos olhos.
+    pub eyes: u8,
+    /// Barba.
+    pub beard: u8,
+}
+
+impl Appearance {
+    /// Verdadeiro se é a aparência padrão (não precisa ir para o save).
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Self {
+            skin: 2,
+            hair: 1,
+            hair_color: 1,
+            eyes: 0,
+            beard: 0,
+        }
+    }
+}
+
 /// Estado completo do jogo (é o que vai para o save).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameState {
@@ -80,6 +117,11 @@ pub struct GameState {
     pub version: u32,
     /// Lutador do jogador.
     pub player: Fighter,
+    /// Aparência do lutador do jogador. Só é gravada quando difere da padrão: o save de quem
+    /// nunca personalizou continua idêntico ao formato anterior (e os hashes dos replays, que
+    /// cobrem o estado serializado, não mudam). Saves antigos, sem o campo, usam a padrão.
+    #[serde(default, skip_serializing_if = "Appearance::is_default")]
+    pub appearance: Appearance,
     /// XP acumulado no nível atual.
     pub xp: u32,
     /// Pontos de atributo não distribuídos.
@@ -123,6 +165,8 @@ pub enum Input {
     Equip(ItemId),
     /// Desequipa um slot.
     Unequip(ItemKind),
+    /// Muda a aparência do lutador do jogador (permitido em qualquer tela: é só visual).
+    SetAppearance(Appearance),
 }
 
 /// Motivo de uma entrada recusada.
@@ -184,6 +228,8 @@ pub enum GameEvent {
     PointAllocated(Attr),
     /// Modo alterado.
     ModeChanged(Mode),
+    /// Aparência alterada.
+    AppearanceChanged(Appearance),
 }
 
 /// Quando o aplicativo deve salvar.
@@ -223,6 +269,7 @@ impl GameState {
                     shield: None,
                 },
             },
+            appearance: Appearance::default(),
             xp: 0,
             unspent_points: r.attributes.start_free_points,
             gold: r.progression.start_gold,
@@ -303,6 +350,11 @@ pub fn step(content: &Content, state: &mut GameState, input: Input) -> StepResul
                 events.push(GameEvent::Unequipped(kind));
                 SaveHint::Soon
             }
+        }
+        Input::SetAppearance(a) => {
+            state.appearance = a;
+            events.push(GameEvent::AppearanceChanged(a));
+            SaveHint::Soon
         }
     };
     StepResult { events, save }

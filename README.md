@@ -1,6 +1,6 @@
 # TaskBarFGladiator
 
-Jogo **original** de gladiador por turnos que roda dentro da área da **barra de tarefas do Windows**,
+Jogo **original** de gladiador por turnos que fica **apoiado em cima da barra de tarefas do Windows**,
 100 % offline, escrito em **Rust**, com foco em segurança, baixo consumo de memória e CPU, e estabilidade
 para ficar aberto o dia inteiro.
 
@@ -20,7 +20,8 @@ cd TaskBarFGladiator
 cargo run --release
 ```
 
-- Faixa: clique esquerdo nos botões; clique direito abre o painel; segure e arraste para mover.
+- Palco (acima da barra): clique esquerdo nos botões; passe o mouse sobre um botão de ação para ver o
+  que ele faz; clique direito abre o painel; segure e arraste para mover.
 - Ícone da bandeja: mostrar/ocultar, pausar, painel, reposicionar, sair.
 - Save e configuração: `%APPDATA%\TaskBarFGladiator\`. Log: `%LOCALAPPDATA%\TaskBarFGladiator\logs\`.
 - Lista do que testar: [`docs/09-verificacao-e-testes.md`](docs/09-verificacao-e-testes.md), seção 3.
@@ -30,26 +31,44 @@ cargo run --release
 
 ## O que é
 
-- Uma faixa de pixel art posicionada sobre uma área livre da barra de tarefas, onde acontecem lutas de
+- Um palco de pixel art sem fundo, apoiado no topo da barra de tarefas, onde acontecem lutas de
   gladiadores em uma arena de uma dimensão (avançar, recuar, golpes leves/médios/pesados, defesa, fôlego).
+  Os lutadores têm cerca de duas vezes a altura da barra; o que está atrás do palco continua visível e
+  clicável.
+- Uma legenda no topo do palco diz sempre em que etapa você está e o que fazer: preparar, sua vez,
+  rodada em andamento (quem agiu, dano, erro) e resultado.
+- Lutador em camadas: a aparência do seu gladiador é personalizável (pele, cabelo, cor do cabelo, olhos,
+  barba) e o equipamento é fixo, igual para todos (armas, escudos e as peças da armadura: elmo, peitoral
+  e grevas).
 - Progressão de personagem (atributos, nível, equipamentos, loja, ligas de torneio).
 - Modo **manual** (você escolhe cada ação com o mouse) e modo **automático** (a IA luta por você com a
   estratégia que você escolheu, enquanto você trabalha).
-- Um painel expandido (janela acima da barra) para ficha, loja, torneios e configurações.
+- Um painel expandido (janela acima do palco) para ficha, loja, liga, aparência e configurações.
 
 ### Pré-visualização (renderização atual, gerada por `cargo run -p render --example preview`)
 
-Faixa em luta, modo manual (barra de tarefas de 72 px, tema escuro):
+As quatro etapas do palco (escala ×3, a de uma barra de tarefas de 48 px):
 
-![Faixa em luta](docs/img/faixa-luta-manual.png)
+| Preparar (tema claro) | Sua vez |
+|---|---|
+| ![Preparar](docs/img/palco-preparar-tema-claro.png) | ![Sua vez](docs/img/palco-luta-sua-vez.png) |
+| **Rodada em andamento** | **Resultado** |
+| ![Golpe](docs/img/palco-luta-golpe.png) | ![Resultado](docs/img/palco-resultado.png) |
 
-Faixa fora de luta (48 px, tema claro):
+Painel expandido (aba Visual):
 
-![Faixa fora de luta](docs/img/faixa-hub-tema-claro.png)
+![Painel](docs/img/painel-visual.png)
 
-Painel expandido (aba Loja):
+Folhas de sprites: [aparências](docs/img/folha-aparencia.png) e
+[equipamentos](docs/img/folha-equipamento.png) em cada pose.
 
-![Painel](docs/img/painel-loja.png)
+### Como criar ou alterar a arte
+
+A arte fica em `crates/assets/src/parts.rs`, como grades de texto (uma letra por pixel, legenda em
+`Ink::from_char`). O lutador é montado com peças: corpo por pose, depois cabelo, barba, elmo, peitoral,
+arma e escudo. Para adicionar um corte de cabelo, uma barba ou uma arma, desenhe a grade, registre-a no
+`enum` correspondente de `crates/assets/src/lib.rs` e rode `cargo run -p render --example preview` para
+ver o resultado em todas as poses. Os testes de `assets` conferem que nenhuma peça sai da tela do lutador.
 
 ## O que não é
 

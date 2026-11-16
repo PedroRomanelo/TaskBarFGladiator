@@ -9,9 +9,10 @@ pub mod png;
 pub mod scene;
 pub mod surface;
 
+pub use assets::Look;
 pub use scene::{
-    ButtonState, FighterView, Hit, HitId, PanelRow, PanelView, StripView, Team, Theme, draw_panel,
-    draw_strip, hit_test, strip_scale,
+    ButtonState, FighterView, FloatText, Floater, Hit, HitId, PanelRow, PanelView, Phase,
+    StageView, Team, Theme, Tone, draw_panel, draw_stage, hit_test, stage_scale,
 };
 pub use surface::{Rgba, Surface};
 

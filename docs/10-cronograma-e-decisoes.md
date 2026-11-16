@@ -41,7 +41,7 @@ Contexto: inspiração em RPGs de gladiador de navegador. Alternativa (recriaç�
 por risco jurídico e por impedir distribuição pública segura. Motivo: mecânicas de gênero são livres;
 nome, arte, textos e código não.
 
-**D3 — Janela sobreposta à barra (`WS_EX_LAYERED` + `TOPMOST` + `NOACTIVATE`).**
+**D3 — Janela sobreposta à barra (`WS_EX_LAYERED` + `TOPMOST` + `NOACTIVATE`).** *(posição substituída por D26; o tipo de janela continua o mesmo)*
 Alternativas: DeskBand (removido no Windows 11), AppBar própria (ocupa espaço da tela), injeção no Explorer
 (instável, sinalizada por antivírus, contradiz requisitos de segurança). Motivo: única opção sem injeção que
 fica visualmente dentro da barra.
@@ -134,12 +134,35 @@ pendentes (exigem arquivo `.rc`).
 Sprites, ícones e fonte são grades de texto no código (`crates/assets`); as capturas usam um codificador
 PNG próprio sem compressão. Nenhuma dependência de imagem no executável.
 
+**D26 — Palco apoiado em cima da barra, não dentro dela.**
+Contexto: dentro da barra (48 px) os lutadores ficavam com 40 px, espremidos entre os ícones, e não
+sobrava espaço para explicar o que estava acontecendo. Alternativas: manter na barra com arte menor
+(ilegível); janela comum (rouba foco, ocupa a área de trabalho). Decisão: a mesma janela em camadas,
+sem fundo, com a base encostada no topo da barra e escala proporcional à altura dela (lutador com cerca
+de 2× a barra). Pixels transparentes deixam o clique passar, então o palco não bloqueia o que está
+atrás. Substitui a parte de posição de D3 e as seções 1.6 de `docs/03` e 2.4 de `docs/04`.
+
+**D27 — A etapa do jogo é sempre dita por escrito.**
+Contexto: os ícones sozinhos não explicavam o fluxo (preparar → lutar → resultado) nem a rodada.
+Decisão: uma legenda no topo do palco, sempre presente; a rodada é narrada passo a passo; o botão
+principal da etapa fica sempre no canto direito da faixa de status; a explicação de cada ação aparece
+na legenda ao passar o mouse (resolve os tooltips previstos em `docs/04`, seção 2.4).
+
+**D28 — Lutador em camadas; aparência personalizável, equipamento fixo.** Resolve P2.
+Tela de 32 × 32 px lógicos. O corpo é montado com peças por pose; por cima vêm a aparência do jogador
+(pele, olhos e cor do cabelo são só paleta; cabelo e barba são desenhos) e o equipamento, que tem um
+único desenho por item (arma, escudo; armadura = elmo + peitoral + grevas). A arte continua em mapas de
+caracteres (D25). O crate `game` guarda só índices de aparência, gravados no save apenas quando diferem
+da padrão, para não alterar o estado serializado dos replays (D17). A arte de cada item é escolhida
+pela sua posição na loja (`app/src/looks.rs`), sem campo novo no conteúdo; a aparência dos oponentes é
+derivada do nome.
+
 ## 3. Decisões pendentes
 
 | ID | Decisão | Prazo | Responsável |
 |---|---|---|---|
 | P1 | Nome definitivo do jogo | Fase 0 | Autor |
-| P2 | Estilo de arte (paleta, proporção dos sprites) | Início da Fase 2 | Autor |
+| ~~P2~~ | ~~Estilo de arte (paleta, proporção dos sprites)~~ — resolvida em D28 (primeira versão da arte; o autor pode refinar os desenhos) | — | — |
 | P3 | Serviço de assinatura de código (SignPath ou outro) | Fase 0/1 (solicitar) | Autor |
 | ~~P4~~ | ~~Edição do Rust e versão fixada~~ — resolvida em D19 | — | — |
 | P5 | Detecção automática do espaço livre via UI Automation | Pós-1.0 | — |

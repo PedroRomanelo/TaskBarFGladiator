@@ -4,20 +4,30 @@
 //! A camada Windows chama os métodos `on_*` e aplica os [`Effects`] devolvidos (redesenhar, abrir
 //! painel, salvar, sair). Os temporizadores são definidos a partir de [`App::anim_busy`] e
 //! [`App::auto_delay_ms`].
+//!
+//! O palco sempre diz ao jogador em que etapa ele está e o que fazer:
+//!
+//! | Etapa | Legenda | Botão principal |
+//! |---|---|---|
+//! | Preparar (fora de luta) | próximo oponente e nível | LUTAR |
+//! | Luta, sua vez (manual) | "RODADA n: ESCOLHA SUA AÇÃO", ou a explicação do botão sob o mouse | botões de ação |
+//! | Luta, rodada em andamento | quem agiu, o golpe, o dano ou o erro | — |
+//! | Resultado | vitória ou derrota, com a recompensa | CONTINUAR |
 
-use crate::anim::{Animator, Banner};
+use crate::anim::{Animator, Caption};
 use crate::config::Config;
 use crate::i18n::{Key, Lang, t};
+use crate::looks;
 use game::{
-    Action, Archetype, Attr, Content, GameEvent, GameState, Input, ItemKind, Mode, OpponentRef,
-    Rejection, SaveHint, Screen, Side, step,
+    Action, Archetype, Attr, Content, FightState, GameEvent, GameState, Input, ItemKind, Mode,
+    OpponentRef, Rejection, SaveHint, Screen, Side, step,
 };
-use render::{ButtonState, FighterView, HitId, PanelRow, PanelView, StripView};
+use render::{ButtonState, FighterView, HitId, Look, PanelRow, PanelView, Phase, StageView, Tone};
 
 /// Efeitos pedidos à camada de plataforma.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Effects {
-    /// Redesenhar a faixa.
+    /// Redesenhar o palco.
     pub redraw_strip: bool,
     /// Redesenhar o painel.
     pub redraw_panel: bool,
@@ -31,8 +41,10 @@ pub struct Effects {
     pub save_soon: bool,
     /// Salvar a configuração.
     pub save_config: bool,
-    /// Reposicionar a faixa no padrão.
+    /// Reposicionar o palco no padrão.
     pub reset_position: bool,
+    /// Recalcular posição e tamanho do palco.
+    pub relayout: bool,
     /// Alterar "iniciar com o Windows".
     pub start_with_windows: Option<bool>,
     /// Encerrar o jogo.
@@ -49,6 +61,7 @@ impl Effects {
         self.save_soon |= o.save_soon;
         self.save_config |= o.save_config;
         self.reset_position |= o.reset_position;
+        self.relayout |= o.relayout;
         self.quit |= o.quit;
         if o.start_with_windows.is_some() {
             self.start_with_windows = o.start_with_windows;
@@ -62,6 +75,23 @@ impl Effects {
             ..Default::default()
         }
     }
+
+    fn redraw() -> Effects {
+        Effects {
+            redraw_strip: true,
+            ..Default::default()
+        }
+    }
+}
+
+/// Parte da aparência alterada por uma linha da aba de aparência.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LookPart {
+    Skin,
+    Hair,
+    HairColor,
+    Eyes,
+    Beard,
 }
 
 /// Ação associada a um botão de linha do painel.
@@ -73,16 +103,36 @@ enum RowAction {
     Buy(game::ItemId),
     Equip(game::ItemId),
     Challenge(OpponentRef),
+    CycleLook(LookPart),
     ToggleLang,
     ToggleReduceMotion,
     ToggleStartWithWindows,
+    CycleSize,
     Reposition,
     CyclePace,
     Quit,
 }
 
+/// O que a legenda da luta está mostrando. Serve para só refazer o texto quando ele muda (o
+/// desenho de cada quadro não aloca).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Cap {
+    /// Legenda definida ao montar a visão (preparação e resultado), ou ainda não calculada.
+    Other,
+    /// Passo da rodada em andamento.
+    Anim(Caption),
+    /// Vez do jogador.
+    Choose { turn: u16 },
+    /// Vez do jogador, com o mouse sobre um botão de ação.
+    Info { action: Action, turn: u16 },
+    /// Modo automático.
+    Auto { turn: u16, paused: bool },
+}
+
 /// Tempo de exibição do resultado no modo automático (ms).
 const RESULT_MS: u32 = 3_000;
+/// Índice da aba de configurações (a última).
+const TAB_CONFIG: usize = 4;
 
 /// Estado do aplicativo.
 #[derive(Debug)]
@@ -96,7 +146,9 @@ pub struct App {
     panel_tab: usize,
     row_actions: Vec<Option<RowAction>>,
     message: Option<Key>,
-    strip_view: StripView,
+    stage: StageView,
+    cap: Cap,
+    hover: Option<HitId>,
     league_just_completed: bool,
 }
 
@@ -107,6 +159,23 @@ const ATTRS: [(Attr, Key); 6] = [
     (Attr::Defense, Key::Defense),
     (Attr::Vitality, Key::Vitality),
     (Attr::Stamina, Key::Stamina),
+];
+
+const HAIR_NAMES: [Key; 6] = [
+    Key::HairBald,
+    Key::HairShort,
+    Key::HairLong,
+    Key::HairMohawk,
+    Key::HairTopknot,
+    Key::HairCurly,
+];
+
+const BEARD_NAMES: [Key; 5] = [
+    Key::BeardNone,
+    Key::BeardStubble,
+    Key::BeardMustache,
+    Key::BeardFull,
+    Key::BeardLong,
 ];
 
 fn archetype_key(a: Archetype) -> Key {
@@ -127,6 +196,34 @@ fn rejection_key(r: Rejection) -> Key {
     }
 }
 
+/// Nome de uma ação no botão (infinitivo).
+fn action_key(a: Action) -> Key {
+    match a {
+        Action::Advance => Key::ActAdvance,
+        Action::Retreat => Key::ActRetreat,
+        Action::Light => Key::ActLight,
+        Action::Medium => Key::ActMedium,
+        Action::Heavy => Key::ActHeavy,
+        Action::Defend => Key::ActDefend,
+        Action::Recover => Key::ActRecover,
+        Action::Taunt => Key::ActTaunt,
+    }
+}
+
+/// Ação narrada na legenda ("fulano: avança").
+fn narration_key(a: Action) -> Key {
+    match a {
+        Action::Advance => Key::NarAdvance,
+        Action::Retreat => Key::NarRetreat,
+        Action::Light => Key::ActLight,
+        Action::Medium => Key::ActMedium,
+        Action::Heavy => Key::ActHeavy,
+        Action::Defend => Key::NarDefend,
+        Action::Recover => Key::NarRecover,
+        Action::Taunt => Key::NarTaunt,
+    }
+}
+
 impl App {
     /// Cria o controlador.
     pub fn new(content: Content, state: GameState, config: Config, system_lang: Lang) -> Self {
@@ -141,20 +238,26 @@ impl App {
             panel_tab: 0,
             row_actions: Vec::new(),
             message: None,
-            strip_view: StripView::Hub {
-                name: String::new(),
-                level: 1,
-                gold: 0,
-                unspent: 0,
-                next_label: String::new(),
-                fight_label: String::new(),
+            stage: StageView {
+                player: blank_fighter(),
+                opponent: blank_fighter(),
+                cells: 1,
+                caption: String::new(),
+                tone: Tone::Normal,
+                hint: String::new(),
+                phase: Phase::Fight {
+                    buttons: None,
+                    paused: false,
+                },
             },
+            cap: Cap::Other,
+            hover: None,
             league_just_completed: false,
         };
         if let Screen::Fight(f) = &app.state.screen {
             app.anim = Some(Animator::new(f, app.config.reduce_motion));
         }
-        app.rebuild_strip_view();
+        app.rebuild_stage_view();
         app
     }
 
@@ -191,16 +294,18 @@ impl App {
     /// Pausa/continua o modo automático.
     pub fn set_paused(&mut self, p: bool) -> Effects {
         self.paused = p;
-        self.rebuild_strip_view();
-        Effects {
-            redraw_strip: true,
-            ..Default::default()
-        }
+        self.rebuild_stage_view();
+        Effects::redraw()
     }
 
-    /// Verdadeiro enquanto há animação (temporizador de quadros ligado).
+    /// Verdadeiro enquanto há algo animando (temporizador de quadros ligado).
     pub fn anim_busy(&self) -> bool {
         self.anim.as_ref().is_some_and(Animator::busy)
+    }
+
+    /// Verdadeiro enquanto a rodada ainda está sendo mostrada (o jogo espera para seguir).
+    fn resolving(&self) -> bool {
+        self.anim.as_ref().is_some_and(Animator::resolving)
     }
 
     /// Atraso até a próxima ação automática, ou `None` se não há ação automática pendente.
@@ -218,27 +323,40 @@ impl App {
         }
     }
 
-    /// Visão atual da faixa.
-    pub fn strip_view(&self) -> &StripView {
-        &self.strip_view
+    /// Visão atual do palco.
+    pub fn stage(&self) -> &StageView {
+        &self.stage
+    }
+
+    /// Região do palco sob o mouse.
+    pub fn hover(&self) -> Option<HitId> {
+        self.hover
+    }
+
+    /// Informa a região do palco sob o mouse (`None` quando o mouse sai). Realça o botão e, na
+    /// vez do jogador, troca a legenda pela explicação da ação.
+    pub fn set_hover(&mut self, hover: Option<HitId>) -> Effects {
+        if hover == self.hover {
+            return Effects::default();
+        }
+        self.hover = hover;
+        self.refresh_caption();
+        Effects::redraw()
     }
 
     /// Avança a animação. Retorna os efeitos (redesenho).
     pub fn on_anim_tick(&mut self, dt_ms: u32) -> Effects {
         let changed = self.anim.as_mut().is_some_and(|a| a.tick(dt_ms));
+        // A última rodada terminou de ser mostrada: passa para o resultado.
+        if !self.resolving()
+            && matches!(self.state.screen, Screen::PostFight(_))
+            && matches!(self.stage.phase, Phase::Fight { .. })
+        {
+            self.rebuild_stage_view();
+            return Effects::redraw();
+        }
         if changed {
             self.refresh_fight_view();
-        }
-        // A última rodada terminou de animar: mostra o resultado.
-        if !self.anim_busy()
-            && matches!(self.state.screen, Screen::PostFight(_))
-            && matches!(self.strip_view, StripView::Fight { .. })
-        {
-            self.rebuild_strip_view();
-            return Effects {
-                redraw_strip: true,
-                ..Default::default()
-            };
         }
         Effects {
             redraw_strip: changed,
@@ -248,7 +366,7 @@ impl App {
 
     /// Ação automática (temporizador do modo automático).
     pub fn on_auto_tick(&mut self) -> Effects {
-        if self.anim_busy() || self.paused {
+        if self.resolving() || self.paused {
             return Effects::default();
         }
         let Mode::Auto(_) = self.state.mode else {
@@ -269,18 +387,28 @@ impl App {
         }
     }
 
-    /// Clique na faixa.
+    /// Clique no palco.
     pub fn on_strip_hit(&mut self, id: HitId) -> Effects {
         match id {
             HitId::Action(i) => {
                 let Some(&action) = Action::ALL.get(usize::from(i)) else {
                     return Effects::default();
                 };
-                if self.anim_busy() {
-                    // Termina a animação atual para responder ao clique sem atraso.
+                if self.resolving() {
+                    // Clicar durante a rodada só adianta a animação; a ação é escolhida depois,
+                    // já vendo o resultado.
                     if let Some(a) = &mut self.anim {
                         a.finish();
                     }
+                    return self.on_anim_tick(0).merged(Effects::redraw());
+                }
+                let valid = match &self.state.screen {
+                    Screen::Fight(f) => f.is_valid(&self.content, Side::Player, action),
+                    _ => false,
+                };
+                if !valid || self.state.mode != Mode::Manual {
+                    // A legenda já explica o motivo enquanto o mouse está sobre o botão.
+                    return Effects::default();
                 }
                 self.apply(Input::FightAction(action))
             }
@@ -307,7 +435,7 @@ impl App {
         };
         match id {
             HitId::Tab(i) => {
-                self.panel_tab = usize::from(i).min(3);
+                self.panel_tab = usize::from(i).min(TAB_CONFIG);
                 self.message = None;
             }
             HitId::ClosePanel => fx.close_panel = true,
@@ -356,10 +484,22 @@ impl App {
                 }
                 fx
             }
+            RowAction::CycleLook(part) => {
+                let mut a = self.state.appearance;
+                let (field, count) = match part {
+                    LookPart::Skin => (&mut a.skin, looks::SKINS),
+                    LookPart::Hair => (&mut a.hair, looks::HAIRS),
+                    LookPart::HairColor => (&mut a.hair_color, looks::HAIR_COLORS),
+                    LookPart::Eyes => (&mut a.eyes, looks::EYES),
+                    LookPart::Beard => (&mut a.beard, looks::BEARDS),
+                };
+                *field = (*field % count + 1) % count;
+                self.apply(Input::SetAppearance(a))
+            }
             RowAction::ToggleLang => {
                 self.lang = self.lang.toggle();
                 self.config.language = Some(self.lang);
-                self.rebuild_strip_view();
+                self.rebuild_stage_view();
                 Effects {
                     save_config: true,
                     redraw_strip: true,
@@ -381,6 +521,18 @@ impl App {
                 Effects {
                     save_config: true,
                     start_with_windows: Some(self.config.start_with_windows),
+                    ..Default::default()
+                }
+            }
+            RowAction::CycleSize => {
+                self.config.size = match self.config.size {
+                    0 => 1,
+                    1 => -1,
+                    _ => 0,
+                };
+                Effects {
+                    save_config: true,
+                    relayout: true,
                     ..Default::default()
                 }
             }
@@ -501,53 +653,94 @@ impl App {
         if before_fight && matches!(self.state.screen, Screen::Hub) {
             self.anim = None;
         }
-        self.rebuild_strip_view();
+        self.rebuild_stage_view();
         fx
     }
 
-    fn refresh_fight_view(&mut self) {
-        if let (
-            Some(a),
-            StripView::Fight {
-                player,
-                opponent,
-                banner,
-                ..
-            },
-        ) = (&self.anim, &mut self.strip_view)
+    /// Desenho do lutador do jogador.
+    fn player_look(&self) -> Look {
+        looks::look(
+            &self.content,
+            self.state.appearance,
+            &self.state.player.equipment,
+        )
+    }
+
+    /// Nome curto e desenho de um oponente da liga.
+    fn opponent_card(&self, r: OpponentRef) -> (String, u8, Look) {
+        match self
+            .content
+            .opponent(usize::from(r.league), usize::from(r.index))
         {
-            a.fill_view(Side::Player, player);
-            a.fill_view(Side::Opponent, opponent);
-            let text = a.banner().map(|b| match b {
-                Banner::Critical => t(self.lang, Key::Critical),
-                Banner::Miss => t(self.lang, Key::Miss),
-            });
-            match (text, banner.as_mut()) {
-                (Some(tx), Some(b)) if b == tx => {}
-                (Some(tx), _) => *banner = Some(tx.to_owned()),
-                (None, _) => *banner = None,
+            Some(def) => {
+                let equipment = game::Equipment {
+                    weapon: def.weapon,
+                    armor: def.armor,
+                    shield: def.shield,
+                };
+                (
+                    looks::short_name(&def.name),
+                    def.level,
+                    looks::look(
+                        &self.content,
+                        looks::opponent_appearance(&def.name),
+                        &equipment,
+                    ),
+                )
+            }
+            None => (String::new(), 1, Look::default()),
+        }
+    }
+
+    /// Visões dos dois lutadores: da animação, quando há uma luta sendo mostrada; senão, parados
+    /// nas casas iniciais.
+    fn fighter_views(&self, r: OpponentRef) -> (FighterView, FighterView) {
+        let player_name = looks::short_name(&self.state.player.name);
+        let (opp_name, opp_level, opp_look) = self.opponent_card(r);
+        match &self.anim {
+            Some(a) => (
+                a.view(Side::Player, player_name, self.player_look()),
+                a.view(Side::Opponent, opp_name, opp_look),
+            ),
+            None => {
+                let arena = &self.content.rules.arena;
+                (
+                    standing_fighter(
+                        player_name,
+                        self.state.player.level,
+                        arena.player_start,
+                        self.player_look(),
+                    ),
+                    standing_fighter(opp_name, opp_level, arena.opponent_start, opp_look),
+                )
             }
         }
+    }
+
+    fn refresh_fight_view(&mut self) {
+        if let (Some(a), Phase::Fight { .. }) = (&self.anim, &self.stage.phase) {
+            let miss = t(self.lang, Key::Miss);
+            a.fill_view(Side::Player, &mut self.stage.player, miss);
+            a.fill_view(Side::Opponent, &mut self.stage.opponent, miss);
+        }
         self.refresh_buttons();
+        self.refresh_caption();
     }
 
     fn refresh_buttons(&mut self) {
-        let busy = self.anim_busy();
+        let waiting = self.resolving();
         let manual = self.state.mode == Mode::Manual;
         let fight = match &self.state.screen {
             Screen::Fight(f) => Some(f),
             _ => None,
         };
-        if let StripView::Fight {
-            buttons, paused, ..
-        } = &mut self.strip_view
-        {
+        if let Phase::Fight { buttons, paused } = &mut self.stage.phase {
             *paused = self.paused;
             *buttons = match (manual, fight) {
                 (true, Some(f)) => {
                     let mut states = [ButtonState::Disabled; 8];
                     for (i, a) in Action::ALL.iter().enumerate() {
-                        if !busy && f.is_valid(&self.content, Side::Player, *a) {
+                        if !waiting && f.is_valid(&self.content, Side::Player, *a) {
                             states[i] = ButtonState::Enabled;
                         }
                     }
@@ -559,51 +752,197 @@ impl App {
         }
     }
 
-    /// Reconstrói a visão da faixa a partir do estado (aloca; chamado só em mudanças de tela).
-    pub fn rebuild_strip_view(&mut self) {
-        let l = self.lang;
-        self.strip_view = match &self.state.screen {
-            Screen::Fight(_) | Screen::PostFight(_)
-                if self.anim_busy() || matches!(self.state.screen, Screen::Fight(_)) =>
-            {
-                let (p, o) = match &self.anim {
-                    Some(a) => (a.view(Side::Player), a.view(Side::Opponent)),
-                    None => (empty_fighter(), empty_fighter()),
-                };
-                StripView::Fight {
-                    player: p,
-                    opponent: o,
-                    cells: self.content.rules.arena.cells,
-                    buttons: None,
-                    paused: self.paused,
-                    banner: None,
+    /// O que a legenda da luta deve mostrar agora.
+    fn fight_cap(&self) -> Cap {
+        if !matches!(self.stage.phase, Phase::Fight { .. }) {
+            return Cap::Other;
+        }
+        if let Some(c) = self.anim.as_ref().and_then(Animator::caption) {
+            return Cap::Anim(c);
+        }
+        let Screen::Fight(f) = &self.state.screen else {
+            return Cap::Other;
+        };
+        let turn = f.turn.saturating_add(1);
+        match (self.state.mode, self.hover) {
+            (Mode::Auto(_), _) => Cap::Auto {
+                turn,
+                paused: self.paused,
+            },
+            (Mode::Manual, Some(HitId::Action(i))) => {
+                match Action::ALL.get(usize::from(i)).copied() {
+                    Some(action) => Cap::Info { action, turn },
+                    None => Cap::Choose { turn },
                 }
             }
+            (Mode::Manual, _) => Cap::Choose { turn },
+        }
+    }
+
+    /// Refaz o texto da legenda da luta, só quando ele muda.
+    fn refresh_caption(&mut self) {
+        let cap = self.fight_cap();
+        if cap == self.cap || cap == Cap::Other {
+            return;
+        }
+        self.cap = cap;
+        let (text, tone) = self.caption_text(cap);
+        self.stage.caption = text;
+        self.stage.tone = tone;
+    }
+
+    fn caption_text(&self, cap: Cap) -> (String, Tone) {
+        let l = self.lang;
+        let name = |side: Side| match side {
+            Side::Player => self.stage.player.name.as_str(),
+            Side::Opponent => self.stage.opponent.name.as_str(),
+        };
+        // Bom para o jogador quando quem se dá bem é o lado dele.
+        let for_player = |side: Side| {
+            if side == Side::Player {
+                Tone::Good
+            } else {
+                Tone::Bad
+            }
+        };
+        match cap {
+            Cap::Other => (String::new(), Tone::Normal),
+            Cap::Anim(Caption::Acted { side, action }) => (
+                format!("{}: {}", name(side), t(l, narration_key(action))),
+                Tone::Normal,
+            ),
+            Cap::Anim(Caption::Hit {
+                attacker,
+                damage,
+                critical,
+            }) => {
+                let crit = if critical {
+                    format!("{} ", t(l, Key::Critical))
+                } else {
+                    String::new()
+                };
+                (
+                    format!(
+                        "{}: {crit}{damage} {}",
+                        name(attacker),
+                        t(l, Key::DamageWord)
+                    ),
+                    for_player(attacker),
+                )
+            }
+            Cap::Anim(Caption::Miss { attacker }) => (
+                format!("{}: {}", name(attacker), t(l, Key::Missed)),
+                for_player(attacker.other()),
+            ),
+            Cap::Anim(Caption::Recovered { side, amount }) => (
+                format!("{}: +{amount} {}", name(side), t(l, Key::Stamina)),
+                Tone::Normal,
+            ),
+            Cap::Anim(Caption::Knockout { loser }) => (
+                format!("{} {}", name(loser), t(l, Key::Fell)),
+                for_player(loser.other()),
+            ),
+            Cap::Anim(Caption::TimeUp) => (t(l, Key::TimeUp).to_owned(), Tone::Normal),
+            Cap::Choose { turn } => (
+                format!("{} {turn}: {}", t(l, Key::Round), t(l, Key::ChooseAction)),
+                Tone::Prompt,
+            ),
+            Cap::Info { action, .. } => match &self.state.screen {
+                Screen::Fight(f) => self.action_info(f, action),
+                _ => (String::new(), Tone::Normal),
+            },
+            Cap::Auto { paused: true, .. } => (t(l, Key::Paused).to_owned(), Tone::Prompt),
+            Cap::Auto { turn, .. } => (
+                format!(
+                    "{} {turn} - {}: {}",
+                    t(l, Key::Round),
+                    t(l, Key::Auto),
+                    t(l, archetype_key(self.state.player_archetype()))
+                ),
+                Tone::Normal,
+            ),
+        }
+    }
+
+    /// Explicação de um botão de ação: custo e chance de acerto, ou por que não pode ser usado.
+    fn action_info(&self, f: &FightState, action: Action) -> (String, Tone) {
+        let l = self.lang;
+        let label = t(l, action_key(action));
+        let cost = f.stamina_cost(&self.content, Side::Player, action);
+        if !f.is_valid(&self.content, Side::Player, action) {
+            let reason = if f.fighter(Side::Player).stamina < cost {
+                Key::NoStamina
+            } else if action.is_attack() {
+                Key::OutOfRange
+            } else {
+                Key::Unavailable
+            };
+            return (format!("{label}: {}", t(l, reason)), Tone::Bad);
+        }
+        let stamina = t(l, Key::Stamina);
+        let text = match action {
+            Action::Light | Action::Medium | Action::Heavy => {
+                let hit = f.hit_chance(&self.content, Side::Player, action) / 10;
+                format!("{label}: {cost} {stamina}, {hit}%")
+            }
+            Action::Advance | Action::Retreat => format!("{label}: {cost} {stamina}"),
+            Action::Defend => format!("{label}: {}", t(l, Key::InfoDefend)),
+            Action::Recover => format!("{label}: {}", t(l, Key::InfoRecover)),
+            Action::Taunt => format!("{label}: {}", t(l, Key::InfoTaunt)),
+        };
+        (text, Tone::Normal)
+    }
+
+    /// Reconstrói a visão do palco a partir do estado (aloca; chamado só em mudanças de etapa).
+    pub fn rebuild_stage_view(&mut self) {
+        let l = self.lang;
+        let cells = self.content.rules.arena.cells;
+        let resolving = self.resolving();
+        self.cap = Cap::Other;
+        self.stage = match &self.state.screen {
+            Screen::Fight(f) => self.fight_stage(f.opponent, cells),
+            Screen::PostFight(sum) if resolving => self.fight_stage(sum.opponent, cells),
             Screen::PostFight(sum) => {
                 let won = sum.outcome.winner == Side::Player;
                 let title = if self.league_just_completed {
-                    t(l, Key::LeagueDone).to_owned()
+                    Key::LeagueDone
                 } else if won {
-                    t(l, Key::Victory).to_owned()
+                    Key::Victory
                 } else {
-                    t(l, Key::Defeat).to_owned()
+                    Key::Defeat
                 };
-                StripView::Result {
-                    title,
-                    detail: format!(
-                        "+{} {}  +{} {}",
-                        sum.xp,
-                        t(l, Key::Xp),
-                        sum.gold,
-                        t(l, Key::Gold)
-                    ),
-                    won,
-                    ok_label: t(l, Key::Ok).to_owned(),
+                let (mut player, mut opponent) = self.fighter_views(sum.opponent);
+                if self.anim.is_none() {
+                    // Save carregado direto no resultado: quem perdeu aparece caído.
+                    if won {
+                        opponent.frame = assets::Frame::Down;
+                    } else {
+                        player.frame = assets::Frame::Down;
+                    }
+                }
+                StageView {
+                    player,
+                    opponent,
+                    cells,
+                    caption: t(l, title).to_owned(),
+                    tone: if won { Tone::Good } else { Tone::Bad },
+                    hint: String::new(),
+                    phase: Phase::Result {
+                        detail: format!(
+                            "+{} {}  +{} {}",
+                            sum.xp,
+                            t(l, Key::Xp),
+                            sum.gold,
+                            t(l, Key::Gold)
+                        ),
+                        ok_label: t(l, Key::Continue).to_owned(),
+                    },
                 }
             }
-            _ => {
+            Screen::Hub => {
                 let r = self.next_challenge();
-                let next_label = match self
+                let (player, opponent) = self.fighter_views(r);
+                let (caption, level) = match self
                     .content
                     .opponent(usize::from(r.league), usize::from(r.index))
                 {
@@ -613,26 +952,51 @@ impl App {
                             .league_progress
                             .get(usize::from(r.league))
                             .is_some_and(|&p| r.index < p);
-                        let prefix = if rematch {
-                            t(l, Key::Training)
-                        } else {
-                            t(l, Key::Next)
-                        };
-                        format!("{prefix}: {} ({} {})", o.name, t(l, Key::Level), o.level)
+                        let prefix = if rematch { Key::Training } else { Key::Next };
+                        (format!("{}: {}", t(l, prefix), o.name), o.level)
                     }
-                    None => String::new(),
+                    None => (String::new(), 1),
                 };
-                StripView::Hub {
-                    name: self.state.player.name.clone(),
-                    level: self.state.player.level,
-                    gold: self.state.gold,
-                    unspent: self.state.unspent_points,
-                    next_label,
-                    fight_label: t(l, Key::Fight).to_owned(),
+                let unspent = self.state.unspent_points;
+                let what_now = match (unspent, self.state.mode) {
+                    (1.., _) => format!("+{unspent} {}", t(l, Key::PointsInMenu)),
+                    (0, Mode::Auto(_)) => t(l, Key::Auto).to_owned(),
+                    (0, Mode::Manual) => t(l, Key::ClickFight).to_owned(),
+                };
+                StageView {
+                    player,
+                    opponent,
+                    cells,
+                    caption,
+                    tone: Tone::Normal,
+                    hint: format!("{} {level} - {what_now}", t(l, Key::Level)),
+                    phase: Phase::Hub {
+                        gold: self.state.gold,
+                        unspent,
+                        level_label: t(l, Key::Level).to_owned(),
+                        points_label: t(l, Key::PointsShort).to_owned(),
+                        fight_label: t(l, Key::Fight).to_owned(),
+                    },
                 }
             }
         };
         self.refresh_fight_view();
+    }
+
+    fn fight_stage(&self, r: OpponentRef, cells: u8) -> StageView {
+        let (player, opponent) = self.fighter_views(r);
+        StageView {
+            player,
+            opponent,
+            cells,
+            caption: String::new(),
+            tone: Tone::Normal,
+            hint: String::new(),
+            phase: Phase::Fight {
+                buttons: None,
+                paused: self.paused,
+            },
+        }
     }
 
     /// Visão do painel (aloca; o painel não é animado).
@@ -641,6 +1005,7 @@ impl App {
         let in_hub = matches!(self.state.screen, Screen::Hub | Screen::PostFight(_));
         let mut rows = Vec::new();
         let mut actions = Vec::new();
+        let mut preview = None;
         let s = &self.state;
         let header;
         match self.panel_tab {
@@ -764,6 +1129,40 @@ impl App {
                     actions.push(Some(RowAction::Challenge(r)));
                 }
             }
+            3 => {
+                header = t(l, Key::LookHeader).to_owned();
+                let a = s.appearance;
+                let numbered = |v: u8, count: u8| format!("{}/{count}", v % count + 1);
+                let entries: [(Key, String, LookPart); 5] = [
+                    (Key::Skin, numbered(a.skin, looks::SKINS), LookPart::Skin),
+                    (
+                        Key::Hair,
+                        t(l, HAIR_NAMES[usize::from(a.hair) % HAIR_NAMES.len()]).to_owned(),
+                        LookPart::Hair,
+                    ),
+                    (
+                        Key::HairColor,
+                        numbered(a.hair_color, looks::HAIR_COLORS),
+                        LookPart::HairColor,
+                    ),
+                    (Key::Eyes, numbered(a.eyes, looks::EYES), LookPart::Eyes),
+                    (
+                        Key::Beard,
+                        t(l, BEARD_NAMES[usize::from(a.beard) % BEARD_NAMES.len()]).to_owned(),
+                        LookPart::Beard,
+                    ),
+                ];
+                for (key, value, part) in entries {
+                    rows.push(PanelRow {
+                        text: t(l, key).to_owned(),
+                        value,
+                        button: Some((t(l, Key::Change).to_owned(), true)),
+                        highlight: false,
+                    });
+                    actions.push(Some(RowAction::CycleLook(part)));
+                }
+                preview = Some(self.player_look());
+            }
             _ => {
                 header = format!("v{}", env!("CARGO_PKG_VERSION"));
                 let pace = match self.config.pace {
@@ -771,7 +1170,12 @@ impl App {
                     crate::config::Pace::Normal => t(l, Key::PaceNormal),
                     crate::config::Pace::Fast => t(l, Key::PaceFast),
                 };
-                let entries: [(Key, String, Key, RowAction); 6] = [
+                let size = match self.config.size {
+                    ..=-1 => t(l, Key::SizeSmall),
+                    0 => t(l, Key::PaceNormal),
+                    1.. => t(l, Key::SizeLarge),
+                };
+                let entries: [(Key, String, Key, RowAction); 7] = [
                     (
                         Key::Language,
                         match l {
@@ -800,6 +1204,12 @@ impl App {
                         RowAction::ToggleStartWithWindows,
                     ),
                     (
+                        Key::Size,
+                        size.to_owned(),
+                        Key::Change,
+                        RowAction::CycleSize,
+                    ),
+                    (
                         Key::Reposition,
                         String::new(),
                         Key::Ok,
@@ -824,6 +1234,7 @@ impl App {
                 t(l, Key::TabSheet).to_owned(),
                 t(l, Key::TabShop).to_owned(),
                 t(l, Key::TabLeague).to_owned(),
+                t(l, Key::TabLook).to_owned(),
                 t(l, Key::TabConfig).to_owned(),
             ],
             active_tab: self.panel_tab,
@@ -833,7 +1244,15 @@ impl App {
                 .message
                 .map_or_else(|| t(l, Key::ClickOutside), |k| t(l, k))
                 .to_owned(),
+            preview,
         }
+    }
+}
+
+impl Effects {
+    fn merged(mut self, o: Effects) -> Effects {
+        self.merge(o);
+        self
     }
 }
 
@@ -841,17 +1260,24 @@ fn on_off(l: Lang, v: bool) -> String {
     t(l, if v { Key::On } else { Key::Off }).to_owned()
 }
 
-fn empty_fighter() -> FighterView {
+fn blank_fighter() -> FighterView {
+    standing_fighter(String::new(), 1, 0, Look::default())
+}
+
+/// Lutador parado em uma casa, fora de luta (sem barras de vida para mostrar).
+fn standing_fighter(name: String, level: u8, cell: u8, look: Look) -> FighterView {
     FighterView {
-        name: String::new(),
-        level: 1,
-        hp: 0,
+        name,
+        level,
+        hp: 1,
         hp_max: 1,
-        stamina: 0,
+        stamina: 1,
         stamina_max: 1,
-        pos_pm: 0,
+        pos_pm: i32::from(cell) * 1000,
         frame: assets::Frame::Idle,
         flash: false,
+        look,
+        float: None,
     }
 }
 
@@ -877,14 +1303,18 @@ mod tests {
         }
     }
 
+    fn action_hit(a: Action) -> HitId {
+        HitId::Action(Action::ALL.iter().position(|x| *x == a).unwrap_or(5) as u8)
+    }
+
     #[test]
     fn manual_fight_from_hub_to_result() {
         let mut a = app();
-        assert!(matches!(a.strip_view(), StripView::Hub { .. }));
+        assert!(matches!(a.stage().phase, Phase::Hub { .. }));
         a.on_strip_hit(HitId::Fight);
         assert!(matches!(
-            a.strip_view(),
-            StripView::Fight {
+            a.stage().phase,
+            Phase::Fight {
                 buttons: Some(_),
                 ..
             }
@@ -907,15 +1337,101 @@ mod tests {
             .into_iter()
             .find(|x| f.is_valid(&c, Side::Player, *x))
             .unwrap_or(Action::Defend);
-            let idx = Action::ALL.iter().position(|x| *x == action).unwrap_or(5) as u8;
-            a.on_strip_hit(HitId::Action(idx));
+            a.on_strip_hit(action_hit(action));
             rounds += 1;
             assert!(rounds < 100);
         }
         drain(&mut a);
-        assert!(matches!(a.strip_view(), StripView::Result { .. }));
+        assert!(matches!(a.stage().phase, Phase::Result { .. }));
         a.on_strip_hit(HitId::Continue);
-        assert!(matches!(a.strip_view(), StripView::Hub { .. }));
+        assert!(matches!(a.stage().phase, Phase::Hub { .. }));
+    }
+
+    #[test]
+    fn each_stage_tells_the_player_what_to_do() {
+        let mut a = app();
+        // Preparar: mostra o próximo oponente e os dois lutadores nas casas iniciais.
+        let hub = a.stage().clone();
+        assert!(hub.caption.starts_with("PRÓXIMO: Taro"), "{}", hub.caption);
+        assert!(hub.hint.contains("PONTOS NO MENU"), "{}", hub.hint);
+        assert_eq!(hub.opponent.name, "Taro");
+        assert!(hub.player.pos_pm < hub.opponent.pos_pm);
+        // Luta, vez do jogador: convite à ação, com o número da rodada.
+        a.on_strip_hit(HitId::Fight);
+        assert_eq!(a.stage().caption, "RODADA 1: ESCOLHA SUA AÇÃO");
+        assert_eq!(a.stage().tone, Tone::Prompt);
+        // Rodada em andamento: a legenda narra e os botões esperam.
+        a.on_strip_hit(action_hit(Action::Advance));
+        a.on_anim_tick(33);
+        let during = a.stage().clone();
+        // Quem tem a iniciativa age primeiro; as duas ações passam pela legenda, uma por vez.
+        let mut narrated = vec![during.caption.clone()];
+        let mut guard = 0;
+        while a.resolving() && guard < 1000 {
+            a.on_anim_tick(33);
+            if narrated.last() != Some(&a.stage().caption) {
+                narrated.push(a.stage().caption.clone());
+            }
+            guard += 1;
+        }
+        assert!(
+            narrated.iter().any(|c| c == "Teste: AVANÇA"),
+            "legendas da rodada: {narrated:?}"
+        );
+        assert!(
+            narrated.iter().any(|c| c.starts_with("Taro: ")),
+            "legendas da rodada: {narrated:?}"
+        );
+        assert!(matches!(
+            during.phase,
+            Phase::Fight {
+                buttons: Some(b),
+                ..
+            } if b.iter().all(|s| *s == ButtonState::Disabled)
+        ));
+        // Fim da rodada: volta o convite, já na rodada seguinte.
+        drain(&mut a);
+        assert_eq!(a.stage().caption, "RODADA 2: ESCOLHA SUA AÇÃO");
+    }
+
+    #[test]
+    fn hovering_an_action_explains_it() {
+        let mut a = app();
+        a.on_strip_hit(HitId::Fight);
+        // No início os lutadores estão longe: golpe fora de alcance.
+        let fx = a.set_hover(Some(action_hit(Action::Heavy)));
+        assert!(fx.redraw_strip);
+        assert_eq!(a.stage().caption, "GOLPE PESADO: FORA DE ALCANCE");
+        assert_eq!(a.stage().tone, Tone::Bad);
+        // Clicar em ação inválida não gasta a rodada.
+        a.on_strip_hit(action_hit(Action::Heavy));
+        assert!(matches!(&a.state().screen, Screen::Fight(f) if f.turn == 0));
+        a.set_hover(Some(action_hit(Action::Defend)));
+        assert_eq!(a.stage().caption, "DEFENDER: REDUZ O DANO RECEBIDO");
+        // O mouse saiu: volta o convite.
+        a.set_hover(None);
+        assert_eq!(a.stage().caption, "RODADA 1: ESCOLHA SUA AÇÃO");
+        assert!(!a.set_hover(None).redraw_strip);
+    }
+
+    #[test]
+    fn captions_fit_the_stage() {
+        // A legenda tem 31 caracteres úteis; nenhuma explicação de ação pode ser cortada.
+        for lang in [Lang::Pt, Lang::En] {
+            let mut a = app();
+            a.lang = lang;
+            a.on_strip_hit(HitId::Fight);
+            for round in 0..6 {
+                for action in Action::ALL {
+                    a.set_hover(Some(action_hit(action)));
+                    let n = a.stage().caption.chars().count();
+                    assert!(n <= 31, "{lang:?} rodada {round}: {:?}", a.stage().caption);
+                }
+                a.set_hover(None);
+                a.on_strip_hit(action_hit(Action::Advance));
+                drain(&mut a);
+            }
+        }
     }
 
     #[test]
@@ -966,14 +1482,61 @@ mod tests {
     }
 
     #[test]
-    fn language_toggle_changes_strip_text() {
+    fn look_tab_changes_the_fighter_on_stage() {
         let mut a = app();
         a.on_panel_hit(HitId::Tab(3));
+        let pv = a.panel_view();
+        assert_eq!(pv.preview, Some(a.stage().player.look));
+        let before = a.stage().player.look;
+        // Linha 1 = cabelo, linha 4 = barba.
+        let fx = a.on_panel_hit(HitId::Row(1));
+        assert!(fx.redraw_strip && fx.save_soon);
+        a.on_panel_hit(HitId::Row(4));
+        let after = a.stage().player.look;
+        assert_ne!(after.hair, before.hair);
+        assert_ne!(after.beard, before.beard);
+        assert_eq!(a.panel_view().preview, Some(after));
+        // Dar a volta em todas as opções retorna ao começo.
+        for _ in 0..looks::HAIRS - 1 {
+            a.on_panel_hit(HitId::Row(1));
+        }
+        assert_eq!(a.stage().player.look.hair, before.hair);
+        // A aparência vai para o save e volta.
+        let bytes = match game::save::to_bytes(a.content(), a.state()) {
+            Ok(b) => b,
+            Err(e) => panic!("{e}"),
+        };
+        let loaded = match game::save::from_bytes(a.content(), &bytes) {
+            Ok(l) => l,
+            Err(e) => panic!("{e}"),
+        };
+        assert_eq!(loaded.state.appearance, a.state().appearance);
+    }
+
+    #[test]
+    fn size_setting_asks_for_relayout() {
+        let mut a = app();
+        a.on_panel_hit(HitId::Tab(4));
+        let pv = a.panel_view();
+        let row = pv
+            .rows
+            .iter()
+            .position(|r| r.text == t(Lang::Pt, Key::Size))
+            .unwrap_or(0) as u16;
+        let fx = a.on_panel_hit(HitId::Row(row));
+        assert!(fx.relayout && fx.save_config);
+        assert_eq!(a.config().size, 1);
+    }
+
+    #[test]
+    fn language_toggle_changes_stage_text() {
+        let mut a = app();
+        a.on_panel_hit(HitId::Tab(4));
         let _ = a.panel_view();
         a.on_panel_hit(HitId::Row(0));
         assert_eq!(a.lang(), Lang::En);
-        match a.strip_view() {
-            StripView::Hub { fight_label, .. } => assert_eq!(fight_label, "FIGHT"),
+        match &a.stage().phase {
+            Phase::Hub { fight_label, .. } => assert_eq!(fight_label, "FIGHT"),
             other => panic!("{other:?}"),
         }
     }
