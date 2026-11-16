@@ -53,7 +53,8 @@ struct Shell {
     theme: platform::SystemTheme,
     fullscreen: bool,
     locked: bool,
-    anim_timer: bool,
+    /// Intervalo do temporizador de animação ligado (33 ms na rodada; mais lento parado).
+    anim_timer: Option<u32>,
     auto_timer: Option<u32>,
     last_anim: Instant,
     quitting: bool,
@@ -166,7 +167,7 @@ pub fn run() {
         drag_left: None,
         fullscreen: false,
         locked: false,
-        anim_timer: false,
+        anim_timer: None,
         auto_timer: None,
         last_anim: Instant::now(),
         quitting: false,
@@ -527,14 +528,24 @@ impl Shell {
         if self.quitting {
             return;
         }
-        let busy = self.app.anim_busy() && self.visible();
-        if busy && !self.anim_timer {
-            self.last_anim = Instant::now();
-            self.platform.set_timer(TIMER_ANIM, 33, 8);
-            self.anim_timer = true;
-        } else if !busy && self.anim_timer {
-            self.platform.kill_timer(TIMER_ANIM);
-            self.anim_timer = false;
+        let interval = if !self.visible() {
+            None
+        } else if self.app.anim_busy() {
+            Some(33)
+        } else {
+            self.app.ambient_ms()
+        };
+        if interval != self.anim_timer {
+            match interval {
+                Some(ms) => {
+                    if self.anim_timer.is_none() {
+                        self.last_anim = Instant::now();
+                    }
+                    self.platform.set_timer(TIMER_ANIM, ms, ms / 4);
+                }
+                None => self.platform.kill_timer(TIMER_ANIM),
+            }
+            self.anim_timer = interval;
         }
         let want = if self.visible() {
             if self.app.anim_busy() {

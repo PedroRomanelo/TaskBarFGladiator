@@ -1,6 +1,7 @@
 //! Primitivas: lutador em camadas, ícones, discos e texto com contorno, com escala inteira.
 
 use crate::surface::{Rgba, Surface};
+use assets::sprites::{Anim, Role};
 use assets::{Armor, CANVAS, Frame, GLYPH_H, GLYPH_W, Icon, Ink, Look, Turn};
 
 /// Cores de um time.
@@ -142,6 +143,83 @@ pub fn fighter(
             }
         }
     }
+}
+
+/// Rampa de três tons (claro, médio, escuro).
+pub type Ramp = [Rgba; 3];
+
+/// Material da armadura no corpo em sprites: `None` mantém as cores do artista (aço).
+fn armor_ramp(armor: Armor) -> Option<[u32; 3]> {
+    match armor {
+        // Sem armadura ou túnica: placas pintadas como tecido acolchoado.
+        Armor::None | Armor::Tunic => Some([0xd9c8a8, 0xa8916e, 0x75604a]),
+        Armor::Leather => Some([0xc08a5c, 0x8a5a3c, 0x5c3a2a]),
+        Armor::Mail => None,
+        Armor::Plates => Some([0xf0b65a, 0xc27c3a, 0x8a4b2a]),
+    }
+}
+
+/// Desenha o corpo em sprites ([`assets::sprites::fighter_set`]) com o eixo do corpo na coluna `ax`
+/// e o chão na linha `floor` (pixels físicos). `anim_ms` é o tempo desde o início da pose. As cores
+/// de time, pele, olhos e armadura vêm de `team` e `look`. Devolve `false`, sem desenhar nada, se
+/// não há conjunto embutido.
+#[allow(clippy::too_many_arguments)]
+pub fn sprite_fighter(
+    s: &mut Surface,
+    ax: i32,
+    floor: i32,
+    scale: i32,
+    frame: Frame,
+    anim_ms: u32,
+    look: &Look,
+    team: &Ramp,
+    mirror: bool,
+) -> bool {
+    let Some(set) = assets::sprites::fighter_set() else {
+        return false;
+    };
+    let Some(f) = set.anim(Anim::of(frame)).and_then(|a| a.frame_at(anim_ms)) else {
+        return false;
+    };
+    let skin = assets::SKIN_RAMPS[usize::from(look.skin) % assets::SKIN_RAMPS.len()];
+    let eyes = assets::EYE_COLORS[usize::from(look.eyes) % assets::EYE_COLORS.len()];
+    let armor = armor_ramp(look.armor);
+    let mut colors = [Rgba::TRANSPARENT; 64];
+    for (i, (c, role)) in set.colors.iter().zip(&set.roles).enumerate().skip(1) {
+        let Some(slot) = colors.get_mut(i) else {
+            break;
+        };
+        *slot = match *role {
+            Role::Fixed => Rgba::rgb(*c),
+            Role::Team(k) => team[usize::from(k)],
+            Role::Skin(k) => Rgba::rgb(skin[usize::from(k)]),
+            Role::Eyes => Rgba::rgb(eyes),
+            Role::Armor(k) => Rgba::rgb(armor.map_or(*c, |r| r[usize::from(k)])),
+        };
+    }
+    let top = floor + f.y * scale;
+    for row in 0..f.h {
+        let line = &f.px[row * f.w..(row + 1) * f.w];
+        for (col, &idx) in line.iter().enumerate() {
+            if idx == 0 {
+                continue;
+            }
+            let rx = f.x + col as i32;
+            let cx = if mirror { -rx } else { rx };
+            let color = colors
+                .get(usize::from(idx))
+                .copied()
+                .unwrap_or(Rgba::TRANSPARENT);
+            s.fill_rect(
+                ax + cx * scale,
+                top + row as i32 * scale,
+                scale,
+                scale,
+                color,
+            );
+        }
+    }
+    true
 }
 
 /// Disco de diâmetro `d` (pixels lógicos) com o canto superior esquerdo em `(x, y)` (pixels

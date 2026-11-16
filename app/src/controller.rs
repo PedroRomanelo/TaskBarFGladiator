@@ -14,7 +14,7 @@
 //! | Luta, rodada em andamento | quem agiu, o golpe, o dano ou o erro | — |
 //! | Resultado | vitória ou derrota, com a recompensa | CONTINUAR |
 
-use crate::anim::{Animator, Caption};
+use crate::anim::{Animator, Caption, POSE_HOLD_MS};
 use crate::config::Config;
 use crate::i18n::{Key, Lang, t};
 use crate::looks;
@@ -150,7 +150,14 @@ pub struct App {
     cap: Cap,
     hover: Option<HitId>,
     league_just_completed: bool,
+    /// Relógio das animações paradas (respiração fora da rodada), em ms.
+    clock_ms: u32,
 }
+
+/// Intervalo dos quadros das animações paradas (corpo em sprites respirando).
+const AMBIENT_MS: u32 = 100;
+/// Defasagem do oponente no relógio das animações paradas, para os dois não respirarem juntos.
+const OPPONENT_PHASE_MS: u32 = 470;
 
 const ATTRS: [(Attr, Key); 6] = [
     (Attr::Strength, Key::Strength),
@@ -253,6 +260,7 @@ impl App {
             cap: Cap::Other,
             hover: None,
             league_just_completed: false,
+            clock_ms: 0,
         };
         if let Screen::Fight(f) = &app.state.screen {
             app.anim = Some(Animator::new(f, app.config.reduce_motion));
@@ -344,8 +352,42 @@ impl App {
         Effects::redraw()
     }
 
+    /// Intervalo dos quadros quando nada está acontecendo, ou `None` se o palco fica parado (boneco
+    /// em camadas, ou animações reduzidas). O temporizador de animação usa este intervalo quando
+    /// [`App::anim_busy`] é falso.
+    pub fn ambient_ms(&self) -> Option<u32> {
+        let sprites = [&self.stage.player, &self.stage.opponent]
+            .iter()
+            .any(|f| f.look.body == assets::Body::Sprite);
+        (sprites && !self.config.reduce_motion).then_some(AMBIENT_MS)
+    }
+
+    /// Passa o relógio das animações para as visões dos lutadores.
+    fn refresh_pose_clock(&mut self) {
+        match &self.anim {
+            Some(a) => {
+                a.fill_pose_ms(Side::Player, &mut self.stage.player);
+                a.fill_pose_ms(Side::Opponent, &mut self.stage.opponent);
+            }
+            None => {
+                let clock = self.clock_ms;
+                for (f, phase) in [
+                    (&mut self.stage.player, 0),
+                    (&mut self.stage.opponent, OPPONENT_PHASE_MS),
+                ] {
+                    f.anim_ms = if f.frame == assets::Frame::Down {
+                        POSE_HOLD_MS
+                    } else {
+                        clock.wrapping_add(phase)
+                    };
+                }
+            }
+        }
+    }
+
     /// Avança a animação. Retorna os efeitos (redesenho).
     pub fn on_anim_tick(&mut self, dt_ms: u32) -> Effects {
+        self.clock_ms = self.clock_ms.wrapping_add(dt_ms) % 3_600_000;
         let changed = self.anim.as_mut().is_some_and(|a| a.tick(dt_ms));
         // A última rodada terminou de ser mostrada: passa para o resultado.
         if !self.resolving()
@@ -358,8 +400,12 @@ impl App {
         if changed {
             self.refresh_fight_view();
         }
+        let ambient = self.ambient_ms().is_some();
+        if ambient {
+            self.refresh_pose_clock();
+        }
         Effects {
-            redraw_strip: changed,
+            redraw_strip: changed || ambient,
             ..Default::default()
         }
     }
@@ -980,6 +1026,7 @@ impl App {
                 }
             }
         };
+        self.refresh_pose_clock();
         self.refresh_fight_view();
     }
 
@@ -1275,6 +1322,7 @@ fn standing_fighter(name: String, level: u8, cell: u8, look: Look) -> FighterVie
         stamina_max: 1,
         pos_pm: i32::from(cell) * 1000,
         frame: assets::Frame::Idle,
+        anim_ms: 0,
         flash: false,
         look,
         float: None,

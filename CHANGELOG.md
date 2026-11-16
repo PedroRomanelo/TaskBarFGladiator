@@ -49,6 +49,8 @@ A seção **Balanceamento** registra toda mudança de regras ou conteúdo (ver
 - Equipamento visível e fixo: 6 armas (faca, espada curta, lança, machado, arco, bastão; as duas
   últimas ainda sem item no jogo), 4 escudos e 4 armaduras com elmo, peitoral e grevas.
 - Folhas de sprites no `cargo run -p render --example preview`.
+- Corpo do lutador em folhas de sprites PNG (`assets-src/sprites/`), convertidas no build, com
+  animação quadro a quadro e troca de pele, olhos, cor do time e armadura por paleta (D29).
 - `docs/15-plano-fluxo-de-jogo.md`: plano do fluxo de jogo (título, criação do personagem, sete
   atributos com Carisma, intervalo entre lutas e economia), ainda não implementado.
 

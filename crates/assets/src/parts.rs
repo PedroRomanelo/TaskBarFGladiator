@@ -632,9 +632,9 @@ fn shield_piece(s: Shield, center: (i32, i32)) -> Option<Piece> {
 /// Monta as peças de um quadro para uma aparência e um equipamento.
 pub fn rig(frame: Frame, look: &Look) -> Rig {
     let (pose, lying) = match frame {
-        Frame::Idle => (&POSE_IDLE, false),
-        Frame::Attack => (&POSE_ATTACK, false),
-        Frame::Defend => (&POSE_DEFEND, false),
+        Frame::Idle | Frame::Walk | Frame::Hurt => (&POSE_IDLE, false),
+        Frame::Attack | Frame::AttackMedium | Frame::AttackHeavy => (&POSE_ATTACK, false),
+        Frame::Defend | Frame::Block => (&POSE_DEFEND, false),
         Frame::Down => (&POSE_IDLE, true),
     };
     // Caído: arma e escudo ficam fora do desenho (soltos na queda).

@@ -15,6 +15,7 @@ fn look(i: u8) -> Look {
         weapon: Weapon::ALL[usize::from(i + 2) % Weapon::ALL.len()],
         armor: Armor::ALL[usize::from(i + 2) % Armor::ALL.len()],
         shield: Shield::ALL[usize::from(i + 1) % Shield::ALL.len()],
+        ..Look::default()
     }
 }
 
@@ -28,6 +29,7 @@ fn fighter(pos: i32, frame: Frame, hp: i32, look: Look) -> FighterView {
         stamina_max: 60,
         pos_pm: pos * 1000,
         frame,
+        anim_ms: 0,
         flash: false,
         look,
         float: None,

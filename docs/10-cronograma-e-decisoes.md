@@ -157,6 +157,19 @@ da padrão, para não alterar o estado serializado dos replays (D17). A arte de 
 pela sua posição na loja (`app/src/looks.rs`), sem campo novo no conteúdo; a aparência dos oponentes é
 derivada do nome.
 
+**D29 — Corpo do lutador em folhas de sprites, convertidas no build.** Complementa D25 e D28.
+Contexto: a arte em grade de texto não chega ao nível de qualidade pedido (pixel art profissional,
+com rampas de cor e animação quadro a quadro). Decisão: `assets-src/sprites/<conjunto>/` recebe folhas
+PNG e um `set.json`; `crates/assets/build.rs` decodifica no build (dependências só de build: `png`,
+`serde_json`) e embute um formato próprio com paleta indexada e compressão por repetição. O
+executável continua sem decodificador de imagem. Pele, olhos, cor do time e material da armadura são
+trocados por paleta (papéis de cor no `set.json`). As poses do jogo viraram animações (parado, andar,
+três golpes, guarda, golpe aparado, dano, queda), com o tempo de cada pose vindo do animador; parado, o
+palco redesenha a 10 quadros por segundo, e nada com "reduzir animações". Sem conjunto, o boneco em
+camadas continua sendo usado. Os testes de imagem usam o boneco em camadas, então não dependem do
+conjunto instalado. O pacote de teste (cavaleiro) fica fora do repositório por licença (ver
+`assets-src/sprites/LEIA-ME.md`).
+
 ## 3. Decisões pendentes
 
 | ID | Decisão | Prazo | Responsável |

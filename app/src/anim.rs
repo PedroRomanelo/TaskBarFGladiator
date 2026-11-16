@@ -26,6 +26,9 @@ const FLASH_MS: u32 = 160;
 /// Vida de um texto flutuante e quantas linhas lógicas ele sobe nesse tempo.
 const FLOAT_MS: u32 = 900;
 const FLOAT_RISE: u32 = 7;
+/// Tempo de pose usado quando as animações estão reduzidas: as poses de uma vez só (queda) já
+/// aparecem no último quadro.
+pub const POSE_HOLD_MS: u32 = 1_000_000;
 
 /// O que está acontecendo agora na luta (a interface traduz para a legenda do palco).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,8 +86,20 @@ struct Visual {
     stamina: i32,
     stamina_max: i32,
     frame: Frame,
+    /// Tempo desde o início da pose atual.
+    pose_ms: u32,
     flash_ms: u32,
     float: Option<(FloatKind, u32)>,
+}
+
+impl Visual {
+    /// Troca de pose; o relógio da pose só recomeça se ela mudou.
+    fn pose(&mut self, frame: Frame) {
+        if self.frame != frame {
+            self.frame = frame;
+            self.pose_ms = 0;
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,6 +161,7 @@ fn visual_of(f: &FightState, side: Side) -> Visual {
         } else {
             Frame::Idle
         },
+        pose_ms: POSE_HOLD_MS,
         flash_ms: 0,
         float: None,
     }
@@ -202,14 +218,13 @@ impl Animator {
                     let say = StepKind::Say(Caption::Acted { side, action });
                     match action {
                         Action::Light | Action::Medium | Action::Heavy => {
+                            let frame = match action {
+                                Action::Light => Frame::Attack,
+                                Action::Medium => Frame::AttackMedium,
+                                _ => Frame::AttackHeavy,
+                            };
                             self.push(say, WINDUP_MS);
-                            self.push(
-                                StepKind::Pose {
-                                    side,
-                                    frame: Frame::Attack,
-                                },
-                                ATTACK_MS,
-                            );
+                            self.push(StepKind::Pose { side, frame }, ATTACK_MS);
                             pending_attack = Some(side);
                         }
                         Action::Defend => {
@@ -350,6 +365,7 @@ impl Animator {
         let dt = dt_ms.min(100); // após suspensão o dt é limitado
         let mut changed = false;
         for v in &mut self.vis {
+            v.pose_ms = v.pose_ms.saturating_add(dt).min(POSE_HOLD_MS);
             if v.flash_ms > 0 {
                 v.flash_ms = v.flash_ms.saturating_sub(dt);
                 changed = true;
@@ -408,8 +424,14 @@ impl Animator {
 
     fn apply_start(&mut self, step: Step) {
         match step.kind {
-            StepKind::Pose { side, frame } => self.vis[side.index()].frame = frame,
+            StepKind::Pose { side, frame } => self.vis[side.index()].pose(frame),
             StepKind::Say(c) => self.caption = Some(c),
+            StepKind::Move { side, .. } => {
+                let v = &mut self.vis[side.index()];
+                if v.frame == Frame::Idle {
+                    v.pose(Frame::Walk);
+                }
+            }
             StepKind::Hit {
                 target,
                 damage,
@@ -418,6 +440,18 @@ impl Animator {
                 let v = &mut self.vis[target.index()];
                 v.hp = (v.hp - damage).max(0);
                 v.flash_ms = if self.reduce_motion { 0 } else { FLASH_MS };
+                // Quem está em guarda apara com o escudo; quem não está, sente o golpe.
+                match v.frame {
+                    Frame::Defend | Frame::Block => {
+                        v.frame = Frame::Block;
+                        v.pose_ms = 0;
+                    }
+                    Frame::Idle | Frame::Walk | Frame::Hurt => {
+                        v.frame = Frame::Hurt;
+                        v.pose_ms = 0;
+                    }
+                    _ => {}
+                }
                 self.float(
                     target,
                     FloatKind::Damage {
@@ -436,7 +470,7 @@ impl Animator {
                 self.caption = Some(Caption::Miss { attacker });
             }
             StepKind::Float { side, kind } => self.float(side, kind),
-            StepKind::Move { .. } | StepKind::Sync => {}
+            StepKind::Sync => {}
         }
     }
 
@@ -452,7 +486,22 @@ impl Animator {
 
     fn apply_end(&mut self, step: Step) {
         match step.kind {
-            StepKind::Move { side, to_pm } => self.vis[side.index()].pos_pm = to_pm,
+            StepKind::Move { side, to_pm } => {
+                let v = &mut self.vis[side.index()];
+                v.pos_pm = to_pm;
+                if v.frame == Frame::Walk {
+                    v.pose(Frame::Idle);
+                }
+            }
+            StepKind::Hit { target, .. } => {
+                // Fim da reação ao golpe: volta à postura em que estava.
+                let v = &mut self.vis[target.index()];
+                match v.frame {
+                    Frame::Hurt => v.pose(Frame::Idle),
+                    Frame::Block => v.pose(Frame::Defend),
+                    _ => {}
+                }
+            }
             StepKind::Sync => {
                 // Fim da rodada: a legenda volta a ser o convite para a próxima ação.
                 self.caption = None;
@@ -466,14 +515,13 @@ impl Animator {
                         v.stamina = real.stamina;
                         v.stamina_max = real.stamina_max;
                         if real.frame == Frame::Down {
-                            v.frame = Frame::Down;
+                            v.pose(Frame::Down);
                         }
                     }
                 }
             }
             StepKind::Pose { .. }
             | StepKind::Say(_)
-            | StepKind::Hit { .. }
             | StepKind::Miss { .. }
             | StepKind::Float { .. } => {}
         }
@@ -482,6 +530,20 @@ impl Animator {
     /// O que está acontecendo agora (`None` entre rodadas).
     pub fn caption(&self) -> Option<Caption> {
         self.caption
+    }
+
+    /// Tempo de pose exibido (com animações reduzidas, sempre o quadro final).
+    fn shown_pose_ms(&self, v: &Visual) -> u32 {
+        if self.reduce_motion {
+            POSE_HOLD_MS
+        } else {
+            v.pose_ms
+        }
+    }
+
+    /// Atualiza só o tempo de pose de uma visão (relógio das animações paradas).
+    pub fn fill_pose_ms(&self, side: Side, out: &mut FighterView) {
+        out.anim_ms = self.shown_pose_ms(&self.vis[side.index()]);
     }
 
     fn floater(v: &Visual, miss_label: &'static str) -> Option<Floater> {
@@ -506,6 +568,7 @@ impl Animator {
         out.stamina_max = v.stamina_max;
         out.pos_pm = v.pos_pm;
         out.frame = v.frame;
+        out.anim_ms = self.shown_pose_ms(v);
         out.flash = v.flash_ms > 0;
         out.float = Self::floater(v, miss_label);
     }
@@ -522,6 +585,7 @@ impl Animator {
             stamina_max: v.stamina_max,
             pos_pm: v.pos_pm,
             frame: v.frame,
+            anim_ms: self.shown_pose_ms(v),
             flash: v.flash_ms > 0,
             look,
             float: None,
@@ -627,6 +691,45 @@ mod tests {
         // Entre rodadas não há legenda de animação: a interface mostra o convite à ação.
         assert_eq!(a.caption(), None);
         assert!(!a.resolving());
+    }
+
+    #[test]
+    fn poses_follow_the_round() {
+        // Golpe recebido sem guarda: reação de dano e volta a ficar parado.
+        let (c, mut f) = fight();
+        let mut a = Animator::new(&f, false);
+        let mut ev = Vec::new();
+        while f.outcome.is_none() {
+            ev.clear();
+            let p = game::ai::choose_action(&c, &mut f, Side::Player);
+            let o = game::ai::choose_action(&c, &mut f, Side::Opponent);
+            f.play_round(&c, p, o, &mut ev);
+            a.push_round(&ev, &f);
+            let mut seen = Vec::new();
+            let mut guard = 0;
+            while a.resolving() {
+                a.tick(33);
+                for side in [Side::Player, Side::Opponent] {
+                    seen.push(view(&a, side).frame);
+                }
+                guard += 1;
+                assert!(guard < 1000, "animação não termina");
+            }
+            let hit = ev.iter().any(|e| matches!(e, FightEvent::Hit { .. }));
+            if hit {
+                assert!(
+                    seen.iter().any(|f| matches!(f, Frame::Hurt | Frame::Block)),
+                    "golpe sem reação: {seen:?}"
+                );
+            }
+            for side in [Side::Player, Side::Opponent] {
+                let shown = view(&a, side).frame;
+                assert!(
+                    matches!(shown, Frame::Idle | Frame::Defend | Frame::Down),
+                    "pose que não termina: {shown:?}"
+                );
+            }
+        }
     }
 
     #[test]

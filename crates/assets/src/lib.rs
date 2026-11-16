@@ -7,11 +7,16 @@
 //! O lutador é um boneco em camadas (ver [`parts`]): o corpo é montado com peças por pose e recebe
 //! por cima a aparência escolhida pelo jogador ([`Look`]: pele, olhos, cabelo, barba) e o
 //! equipamento fixo (arma, escudo e peças da armadura).
+//!
+//! Quando há folhas de sprites desenhadas por artista em `assets-src/sprites/`, o corpo pode ser
+//! desenhado com elas ([`sprites`], [`Body::Sprite`]): animação quadro a quadro, com pele, olhos, cor
+//! do time e material da armadura trocados por paleta.
 #![forbid(unsafe_code)]
 
 mod art;
 mod font;
 pub mod parts;
+pub mod sprites;
 
 pub use art::{Icon, icon};
 pub use font::{GLYPH_H, GLYPH_W, glyph};
@@ -20,22 +25,54 @@ pub use parts::{CANVAS, CENTER_X, Piece, Rig, Turn, rig};
 /// Versão do crate.
 pub const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Quadro de animação do lutador.
+/// Pose do lutador. O boneco em camadas tem um desenho por pose; o corpo em sprites tem uma
+/// animação por pose ([`sprites::Anim::of`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Frame {
     /// Parado, em guarda.
     Idle,
-    /// Golpe com a arma estendida.
+    /// Andando (avanço e recuo).
+    Walk,
+    /// Golpe leve com a arma estendida.
     Attack,
+    /// Golpe médio.
+    AttackMedium,
+    /// Golpe pesado.
+    AttackHeavy,
     /// Escudo (ou braço) erguido.
     Defend,
+    /// Golpe aparado na defesa.
+    Block,
+    /// Golpe recebido.
+    Hurt,
     /// Caído (nocaute).
     Down,
 }
 
 impl Frame {
-    /// Todos os quadros.
-    pub const ALL: [Frame; 4] = [Frame::Idle, Frame::Attack, Frame::Defend, Frame::Down];
+    /// Todas as poses.
+    pub const ALL: [Frame; 9] = [
+        Frame::Idle,
+        Frame::Walk,
+        Frame::Attack,
+        Frame::AttackMedium,
+        Frame::AttackHeavy,
+        Frame::Defend,
+        Frame::Block,
+        Frame::Hurt,
+        Frame::Down,
+    ];
+
+    /// As quatro poses que o boneco em camadas desenha de forma diferente.
+    pub const BASIC: [Frame; 4] = [Frame::Idle, Frame::Attack, Frame::Defend, Frame::Down];
+
+    /// Verdadeiro para os três golpes.
+    pub fn is_attack(self) -> bool {
+        matches!(
+            self,
+            Frame::Attack | Frame::AttackMedium | Frame::AttackHeavy
+        )
+    }
 }
 
 /// Papel de cada pixel de um sprite. A cor final é escolhida pelo renderizador a partir da
@@ -170,6 +207,17 @@ pub const SKIN_TONES: [(u32, u32); 6] = [
     (0xb07a4e, 0x875a36),
     (0x8a5a38, 0x653f25),
     (0x5e3d28, 0x432a1a),
+];
+
+/// Tons de pele do corpo em sprites, na mesma ordem de [`SKIN_TONES`]: `[claro, médio, sombra]` em
+/// `0xRRGGBB`, com a sombra puxada para o vermelho (pixel art com variação de matiz).
+pub const SKIN_RAMPS: [[u32; 3]; 6] = [
+    [0xfbe3cb, 0xf0b88e, 0xc98b62],
+    [0xf6ca9f, 0xe69c69, 0xbf6f4a],
+    [0xe3a878, 0xc47c4c, 0x96563a],
+    [0xc98a5a, 0xa0623c, 0x74432c],
+    [0x9c6442, 0x744630, 0x4e2e22],
+    [0x6e4632, 0x4e3024, 0x321e18],
 ];
 
 /// Cores de cabelo e barba: `(cor, sombra)` em `0xRRGGBB`.
@@ -340,9 +388,21 @@ impl Shield {
     ];
 }
 
+/// Como o corpo é desenhado.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Body {
+    /// Boneco em camadas ([`parts`]).
+    #[default]
+    Layered,
+    /// Folhas de sprites ([`sprites::fighter_set`]); sem conjunto embutido, volta ao boneco.
+    Sprite,
+}
+
 /// Tudo o que define o desenho de um lutador: aparência (personalizável) e equipamento (fixo).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Look {
+    /// Tipo de corpo.
+    pub body: Body,
     /// Índice em [`SKIN_TONES`].
     pub skin: u8,
     /// Corte de cabelo.

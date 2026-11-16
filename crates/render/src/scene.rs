@@ -14,9 +14,9 @@
 //!         botão principal (LUTAR / CONTINUAR) fora dela
 //! ```
 
-use crate::draw::{self, SpritePalette, TeamColors};
+use crate::draw::{self, Ramp, SpritePalette, TeamColors};
 use crate::surface::{Rgba, Surface};
-use assets::{CANVAS, CENTER_X, Frame, Icon, Look};
+use assets::{Body, CANVAS, CENTER_X, Frame, Icon, Look};
 
 /// Largura lógica do palco.
 pub const STAGE_WIDTH: i32 = 132;
@@ -47,6 +47,10 @@ const BUTTON_PITCH: i32 = 10;
 const BUTTONS_Y: i32 = 9;
 /// Distância entre o eixo do lutador e a coluna de botões ao lado dele.
 const BUTTON_GAP: i32 = 11;
+/// O mesmo para o corpo em sprites.
+const SPRITE_BUTTON_GAP: i32 = 17;
+/// Distância mínima, no desenho, entre os eixos de dois corpos em sprites.
+const SPRITE_MIN_GAP: i32 = 22;
 
 /// Identificador de uma região clicável.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -168,6 +172,17 @@ impl Theme {
         }
     }
 
+    /// Cor do time no corpo em sprites (capa, penacho, lenço): três tons com variação de matiz.
+    fn sprite_team(&self, team: Team) -> Ramp {
+        let hex = match (self.high_contrast, team) {
+            (true, Team::Player) => [0xffffff, 0xc0c0c0, 0x909090],
+            (true, Team::Opponent) => [0x808080, 0x505050, 0x303030],
+            (false, Team::Player) => [0xc64524, 0x8e251d, 0x571c27],
+            (false, Team::Opponent) => [0x905ea9, 0x6b3e75, 0x45293f],
+        };
+        hex.map(Rgba::rgb)
+    }
+
     fn team(&self, team: Team) -> TeamColors {
         if self.high_contrast {
             match team {
@@ -274,8 +289,10 @@ pub struct FighterView {
     pub stamina_max: i32,
     /// Casa na arena (pode ser fracionária durante a animação: ‰ de casa).
     pub pos_pm: i32,
-    /// Quadro.
+    /// Pose.
     pub frame: Frame,
+    /// Tempo desde o início da pose (ms): escolhe o quadro da animação no corpo em sprites.
+    pub anim_ms: u32,
     /// Pisca em branco (golpe recebido).
     pub flash: bool,
     /// Aparência e equipamento.
@@ -557,7 +574,7 @@ impl Ctx {
 
     fn fighters(&self, s: &mut Surface, p: &FighterView, o: &FighterView) {
         // Quem está golpeando fica por cima.
-        let order = if o.frame == Frame::Attack {
+        let order = if o.frame.is_attack() {
             [(p, Team::Player), (o, Team::Opponent)]
         } else {
             [(o, Team::Opponent), (p, Team::Player)]
@@ -570,7 +587,32 @@ impl Ctx {
                 CENTER_X
             };
             // A posição horizontal usa pixels físicos: o movimento entre casas fica suave.
-            let x = self.ox + Self::center_milli(f) * self.sc / 1000 - axis * self.sc;
+            let center = self.ox + Self::center_milli(f) * self.sc / 1000;
+            // O corpo em sprites é mais largo que uma casa: perto do oponente, cada um recua metade
+            // do que falta para os dois não se sobreporem (só no desenho; a casa não muda).
+            let gap = Self::center_milli(o) - Self::center_milli(p);
+            let push = if (0..SPRITE_MIN_GAP * 1000).contains(&gap) {
+                (SPRITE_MIN_GAP * 1000 - gap) / 2 * self.sc / 1000
+            } else {
+                0
+            };
+            let sprite_center = if mirror { center + push } else { center - push };
+            if f.look.body == Body::Sprite
+                && draw::sprite_fighter(
+                    s,
+                    sprite_center,
+                    self.py(FLOOR_Y),
+                    self.sc,
+                    f.frame,
+                    f.anim_ms,
+                    &f.look,
+                    &self.theme.sprite_team(team),
+                    mirror,
+                )
+            {
+                continue;
+            }
+            let x = center - axis * self.sc;
             let palette = SpritePalette::new(&f.look, self.theme.team(team));
             draw::fighter(
                 s,
@@ -652,12 +694,26 @@ impl Ctx {
     ) {
         let pc = Self::center_cell(p);
         let oc = Self::center_cell(o);
-        let back_x = (pc - BUTTON_GAP - BUTTON_D).max(0);
-        let between = pc + BUTTON_GAP;
-        let front_x = if between + BUTTON_D <= oc - BUTTON_GAP {
+        // O corpo em sprites é mais largo (espada atrás, escudo à frente).
+        let sprites = p.look.body == Body::Sprite && assets::sprites::fighter_set().is_some();
+        let (gap, push) = if sprites {
+            // Os corpos afastados no desenho quando estão perto (ver `fighters`).
+            let apart = Self::center_milli(o) - Self::center_milli(p);
+            let push = if (0..SPRITE_MIN_GAP * 1000).contains(&apart) {
+                (SPRITE_MIN_GAP * 1000 - apart + 1999) / 2000
+            } else {
+                0
+            };
+            (SPRITE_BUTTON_GAP, push)
+        } else {
+            (BUTTON_GAP, 0)
+        };
+        let back_x = (pc - push - gap - BUTTON_D).max(0);
+        let between = pc + gap;
+        let front_x = if between + BUTTON_D <= oc - gap {
             between
         } else {
-            (oc + BUTTON_GAP).min(STAGE_WIDTH - BUTTON_D)
+            (oc + push + gap).min(STAGE_WIDTH - BUTTON_D)
         };
         for (i, (icon, st)) in ACTION_ICONS.iter().zip(states.iter()).enumerate() {
             let (front, row) = ACTION_SLOTS[i];
@@ -948,19 +1004,33 @@ pub fn draw_panel(s: &mut Surface, view: &PanelView, hits: &mut Vec<Hit>) {
             3,
             Rgba::rgb(0xd9b36a),
         );
-        // Retrato no dobro da escala do painel.
+        // Retrato no dobro da escala do painel (o corpo em sprites, mais alto, na escala do painel).
         let palette = SpritePalette::new(look, theme.team(Team::Player));
-        draw::fighter(
-            s,
-            ctx.px(px + 2),
-            ctx.py(top + 1),
-            sc * 2,
-            Frame::Idle,
-            look,
-            &palette,
-            false,
-            false,
-        );
+        let sprite = look.body == Body::Sprite
+            && draw::sprite_fighter(
+                s,
+                ctx.px(px + PREVIEW_W / 2),
+                ctx.py(top + PREVIEW_W - 3),
+                sc,
+                Frame::Idle,
+                0,
+                look,
+                &theme.sprite_team(Team::Player),
+                false,
+            );
+        if !sprite {
+            draw::fighter(
+                s,
+                ctx.px(px + 2),
+                ctx.py(top + 1),
+                sc * 2,
+                Frame::Idle,
+                look,
+                &palette,
+                false,
+                false,
+            );
+        }
     }
     let max_rows = ((PANEL_HEIGHT - top - 12) / row_h) as usize;
     for (i, row) in view.rows.iter().take(max_rows).enumerate() {

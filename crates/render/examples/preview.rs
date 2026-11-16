@@ -2,9 +2,12 @@
 //!
 //! - `folha_*.png`: folhas de sprites (poses, aparências e equipamentos) para revisar a arte;
 //! - `palco_*.png`: o palco em cada etapa do jogo;
-//! - `painel_*.png`: o painel.
+//! - `painel_*.png`: o painel;
+//! - `cavaleiro_*.png`: o mesmo com o corpo em sprites, quando há um conjunto em
+//!   `assets-src/sprites/`.
 
-use assets::{Armor, Beard, CANVAS, Frame, Hair, Shield, Weapon};
+use assets::sprites::{Anim, fighter_set};
+use assets::{Armor, Beard, Body, CANVAS, Frame, Hair, Shield, Weapon};
 use render::draw::{self, SpritePalette, TeamColors};
 use render::scene::{PANEL_HEIGHT, PANEL_WIDTH, STAGE_HEIGHT, STAGE_WIDTH};
 use render::{
@@ -27,6 +30,7 @@ fn hero() -> Look {
         weapon: Weapon::Shortsword,
         armor: Armor::Leather,
         shield: Shield::Round,
+        ..Look::default()
     }
 }
 
@@ -40,6 +44,7 @@ fn rival() -> Look {
         weapon: Weapon::Axe,
         armor: Armor::Tunic,
         shield: Shield::None,
+        ..Look::default()
     }
 }
 
@@ -53,6 +58,13 @@ fn fighter(name: &str, pos: i32, frame: Frame, hp: i32, look: Look) -> FighterVi
         stamina_max: 60,
         pos_pm: pos * 1000,
         frame,
+        // Golpe no instante do impacto; queda já no chão.
+        anim_ms: match frame {
+            Frame::Down => 10_000,
+            f if f.is_attack() => 210,
+            Frame::Hurt | Frame::Block => 80,
+            _ => 0,
+        },
         flash: false,
         look,
         float: None,
@@ -63,12 +75,12 @@ fn fighter(name: &str, pos: i32, frame: Frame, hp: i32, look: Look) -> FighterVi
 fn sheet(rows: &[Look], scale: i32) -> Surface {
     let cell = (CANVAS + 4) * scale;
     let mut s = Surface::new(
-        (cell * Frame::ALL.len() as i32) as usize,
+        (cell * Frame::BASIC.len() as i32) as usize,
         (cell * rows.len() as i32) as usize,
     );
     for (r, look) in rows.iter().enumerate() {
         let palette = SpritePalette::new(look, RED);
-        for (c, frame) in Frame::ALL.iter().enumerate() {
+        for (c, frame) in Frame::BASIC.iter().enumerate() {
             draw::fighter(
                 &mut s,
                 c as i32 * cell + 2 * scale,
@@ -278,6 +290,140 @@ fn main() -> std::io::Result<()> {
     let mut s = Surface::new((PANEL_WIDTH * 2) as usize, (PANEL_HEIGHT * 2) as usize);
     draw_panel(&mut s, &panel, &mut hits);
     std::fs::write(format!("{dir}/painel_visual.png"), png::encode(&s, None))?;
+
+    if fighter_set().is_some() {
+        // Mesmas cenas com o corpo em sprites.
+        for (name, view, hover) in &views {
+            let mut v = view.clone();
+            v.player.look.body = Body::Sprite;
+            v.opponent.look.body = Body::Sprite;
+            for (sc, theme, tname) in [(3, dark, "escuro"), (3, light, "claro")] {
+                let mut s = Surface::new((STAGE_WIDTH * sc) as usize, (STAGE_HEIGHT * sc) as usize);
+                draw_stage(&mut s, &v, theme, *hover, &mut hits);
+                std::fs::write(
+                    format!("{dir}/cavaleiro_palco_{name}_{tname}.png"),
+                    png::encode(&s, bg),
+                )?;
+            }
+        }
+        let mut p = panel.clone();
+        p.preview = Some(Look {
+            body: Body::Sprite,
+            ..hero()
+        });
+        let mut s = Surface::new((PANEL_WIDTH * 2) as usize, (PANEL_HEIGHT * 2) as usize);
+        draw_panel(&mut s, &p, &mut hits);
+        std::fs::write(format!("{dir}/cavaleiro_painel.png"), png::encode(&s, None))?;
+        std::fs::write(
+            format!("{dir}/cavaleiro_animacoes.png"),
+            png::encode(&sprite_sheet(4), bg),
+        )?;
+        std::fs::write(
+            format!("{dir}/cavaleiro_variacoes.png"),
+            png::encode(&variations(4), bg),
+        )?;
+    }
     println!("PNGs gravados em {dir}");
     Ok(())
+}
+
+const SPRITE_CELL_W: i32 = 64;
+const SPRITE_CELL_H: i32 = 58;
+
+fn red_ramp() -> draw::Ramp {
+    [0xc64524, 0x8e251d, 0x571c27].map(Rgba::rgb)
+}
+
+/// Todas as animações do corpo em sprites: uma linha por animação, um quadro por coluna.
+fn sprite_sheet(scale: i32) -> Surface {
+    let Some(set) = fighter_set() else {
+        return Surface::new(1, 1);
+    };
+    let cols = Anim::ALL
+        .iter()
+        .filter_map(|a| set.anim(*a))
+        .map(|a| a.frames.len())
+        .max()
+        .unwrap_or(1) as i32;
+    let poses = [
+        Frame::Idle,
+        Frame::Walk,
+        Frame::Attack,
+        Frame::AttackMedium,
+        Frame::AttackHeavy,
+        Frame::Defend,
+        Frame::Block,
+        Frame::Hurt,
+        Frame::Down,
+    ];
+    let mut s = Surface::new(
+        (SPRITE_CELL_W * cols * scale) as usize,
+        (SPRITE_CELL_H * poses.len() as i32 * scale) as usize,
+    );
+    let look = Look {
+        body: Body::Sprite,
+        skin: 1,
+        armor: Armor::Mail,
+        ..Look::default()
+    };
+    for (r, frame) in poses.iter().enumerate() {
+        let Some(anim) = set.anim(Anim::of(*frame)) else {
+            continue;
+        };
+        for c in 0..anim.frames.len() as i32 {
+            draw::sprite_fighter(
+                &mut s,
+                (c * SPRITE_CELL_W + SPRITE_CELL_W / 2) * scale,
+                ((r as i32 + 1) * SPRITE_CELL_H - 4) * scale,
+                scale,
+                *frame,
+                c as u32 * anim.ms,
+                &look,
+                &red_ramp(),
+                false,
+            );
+        }
+    }
+    s
+}
+
+/// Trocas por paleta: tons de pele, cores de olhos, materiais de armadura e cores de time.
+fn variations(scale: i32) -> Surface {
+    let looks: Vec<(Look, draw::Ramp)> = (0..6u8)
+        .map(|i| {
+            (
+                Look {
+                    body: Body::Sprite,
+                    skin: i,
+                    eyes: i,
+                    armor: Armor::ALL[usize::from(i) % Armor::ALL.len()],
+                    ..Look::default()
+                },
+                if i % 2 == 0 {
+                    red_ramp()
+                } else {
+                    [0x905ea9, 0x6b3e75, 0x45293f].map(Rgba::rgb)
+                },
+            )
+        })
+        .collect();
+    let w = 44;
+    let mut s = Surface::new(
+        (w * looks.len() as i32 * scale) as usize,
+        (SPRITE_CELL_H * scale) as usize,
+    );
+    for (i, (look, team)) in looks.iter().enumerate() {
+        draw::sprite_fighter(
+            &mut s,
+            (i as i32 * w + w / 2) * scale,
+            (SPRITE_CELL_H - 6) * scale,
+            scale,
+            Frame::Idle,
+            0,
+            look,
+            team,
+            false,
+        );
+    }
+    s
 }

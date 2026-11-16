@@ -4,7 +4,7 @@
 //! O crate `game` só guarda índices e identificadores; aqui eles viram um [`Look`], que é o que o
 //! renderizador sabe desenhar.
 
-use assets::{Armor, Beard, Hair, Look, Shield, Weapon};
+use assets::{Armor, Beard, Body, Hair, Look, Shield, Weapon};
 use game::{Appearance, Content, Equipment, ItemId, ItemKind};
 
 /// Quantidade de tons de pele.
@@ -55,6 +55,12 @@ fn art<T: Copy + Default>(
 /// Desenho de um lutador a partir da aparência e do equipamento em uso.
 pub fn look(content: &Content, appearance: Appearance, equipment: &Equipment) -> Look {
     Look {
+        // Corpo desenhado por artista quando há um conjunto embutido; senão, o boneco em camadas.
+        body: if assets::sprites::fighter_set().is_some() {
+            Body::Sprite
+        } else {
+            Body::Layered
+        },
         skin: appearance.skin % SKINS,
         hair: Hair::from_index(appearance.hair),
         hair_color: appearance.hair_color % HAIR_COLORS,

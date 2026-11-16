@@ -8,3 +8,7 @@
 .vscode/
 .DS_Store
 /balance/compare.md
+
+# Pacote de sprites de terceiros cuja licença não permite redistribuir os arquivos como asset
+# (ver assets-src/sprites/LEIA-ME.md). Fica só na máquina de quem o baixou.
+/assets-src/sprites/knight/
