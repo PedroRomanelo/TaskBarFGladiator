@@ -169,6 +169,7 @@ derivada do nome.
 | P6 | Suporte nativo a barra vertical | Pós-1.0 | — |
 | P7 | Progresso offline e seus limites | Pós-1.0 | — |
 | P8 | Revisar e aprovar as metas de balanceamento (doc 12, seção 3), principalmente P6 (duração da liga 1) | Antes da Fase 2 | Autor |
+| P9 | Decisões PD1 a PD6 do plano de fluxo de jogo ([doc 15](15-plano-fluxo-de-jogo.md), seção 8): lista de atributos, requisitos de itens, prêmio de campeão, redistribuição de pontos, slots de save e abertura do painel após a luta | Antes da fase A do doc 15 | Autor |
 
 ## 4. Como registrar uma nova decisão
 

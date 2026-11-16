@@ -109,6 +109,7 @@ Toda a documentação de planejamento está em [`docs/`](docs/README.md):
 | [11 — Design do jogo](docs/11-design-do-jogo.md) | GDD inicial: atributos, ações, fórmulas, IA |
 | [12 — Balanceamento de referência](docs/12-balanceamento-de-referencia.md) | Metas, congelamento das regras, processo de alteração |
 | [14 — Formato do conteúdo](docs/14-formato-do-conteudo.md) | Arquivos JSON de regras, itens e ligas |
+| [15 — Plano: fluxo de jogo](docs/15-plano-fluxo-de-jogo.md) | Título, criação do personagem, atributos, intervalo entre lutas e economia (a executar) |
 
 ## Licença
 

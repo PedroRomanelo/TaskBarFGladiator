@@ -11,6 +11,8 @@ Esta pasta contém o planejamento completo do jogo, do início ao lançamento da
      congelamento das regras (baseline) e processo para alterá-las.
    - [`14-formato-do-conteudo.md`](14-formato-do-conteudo.md) — formato dos arquivos JSON de regras,
      itens e ligas.
+   - [`15-plano-fluxo-de-jogo.md`](15-plano-fluxo-de-jogo.md) — plano do fluxo de jogo: título, criação
+     do personagem, sete atributos com Carisma, intervalo entre lutas (nível, pontos, loja) e economia.
 4. Fases, em ordem cronológica:
    - [`02-fase-0-preparacao.md`](02-fase-0-preparacao.md)
    - [`03-fase-1-plataforma.md`](03-fase-1-plataforma.md)
